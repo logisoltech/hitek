@@ -36,7 +36,16 @@ const ShoppingCartPopup = ({ isOpen, onClose, cartItems = [] }) => {
   return (
     <div 
       className={`absolute top-full right-0 mt-2 w-96 bg-white rounded-sm shadow-2xl z-50 border border-gray-200 ${openSans.className}`}
-      onMouseEnter={(e) => e.stopPropagation()}
+      onMouseEnter={(e) => {
+        e.stopPropagation();
+        // Keep popup open when hovering over it
+      }}
+      onMouseLeave={(e) => {
+        // Only close if not moving to parent or bridge
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          onClose();
+        }
+      }}
     >
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200">

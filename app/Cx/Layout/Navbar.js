@@ -113,10 +113,19 @@ const Navbar = () => {
               <span className="absolute -top-2 -right-2 bg-[#00aeef] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                 2
               </span>
-              <ShoppingCartPopup 
-                isOpen={isCartHovered} 
-                onClose={() => setIsCartHovered(false)} 
-              />
+              {isCartHovered && (
+                <>
+                  {/* Invisible bridge to maintain hover across the gap */}
+                  <div 
+                    className="absolute top-full right-0 w-full h-2 pointer-events-auto z-40"
+                    onMouseEnter={() => setIsCartHovered(true)}
+                  />
+                  <ShoppingCartPopup 
+                    isOpen={isCartHovered} 
+                    onClose={() => setIsCartHovered(false)} 
+                  />
+                </>
+              )}
             </div>
             <CiHeart className="text-2xl cursor-pointer hover:text-gray-300 transition" />
             <div 
@@ -125,10 +134,19 @@ const Navbar = () => {
               onMouseLeave={() => setIsProfileHovered(false)}
             >
               <CiUser className="text-2xl cursor-pointer hover:text-gray-300 transition" />
-              <LoginPopup 
-                isOpen={isProfileHovered} 
-                onClose={() => setIsProfileHovered(false)} 
-              />
+              {isProfileHovered && (
+                <>
+                  {/* Invisible bridge to maintain hover across the gap */}
+                  <div 
+                    className="absolute top-full right-0 w-full h-2 pointer-events-auto z-40"
+                    onMouseEnter={() => setIsProfileHovered(true)}
+                  />
+                  <LoginPopup 
+                    isOpen={isProfileHovered} 
+                    onClose={() => setIsProfileHovered(false)} 
+                  />
+                </>
+              )}
             </div>
             {/* Mobile Menu Toggle */}
             <button 
