@@ -410,7 +410,7 @@ export default function AllProducts() {
               </div>
 
               {/* Featured Laptop Banner */}
-              <div className="bg-white rounded-sm p-4 border border-gray-300 shadow-lg">
+              <div className="bg-white rounded-sm p-4 mb-14 border border-gray-300 shadow-lg">
                 <div className="mb-3">
                   <Image
                     src="/laptop-category.jpg"
@@ -441,7 +441,7 @@ export default function AllProducts() {
             </div>
 
             {/* Right Side - Main Content */}
-            <div className="flex-1">
+            <div className="flex-1 flex flex-col">
               {/* Search and Filters Bar */}
               <div className="bg-white rounded-sm p-4 mb-4">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -559,7 +559,7 @@ export default function AllProducts() {
               </div>
 
               {/* Pagination */}
-              <div className="flex items-center justify-center gap-2 mt-8">
+              <div className="flex items-center justify-center gap-2 mt-auto pt-8">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
