@@ -30,11 +30,13 @@ import { PiRecycleLight } from "react-icons/pi";
 import { GrRotateRight } from "react-icons/gr";
 import { openSans } from '../Font/font';
 import ShoppingCartPopup from '../Components/ShoppingCartPopup';
+import LoginPopup from '../Components/LoginPopup';
 
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCartHovered, setIsCartHovered] = useState(false);
+  const [isProfileHovered, setIsProfileHovered] = useState(false);
 
   return (
     <nav className="w-full">
@@ -112,7 +114,17 @@ const Navbar = () => {
               />
             </div>
             <CiHeart className="text-2xl cursor-pointer hover:text-gray-300 transition" />
-            <CiUser className="text-2xl cursor-pointer hover:text-gray-300 transition" />
+            <div 
+              className="relative"
+              onMouseEnter={() => setIsProfileHovered(true)}
+              onMouseLeave={() => setIsProfileHovered(false)}
+            >
+              <CiUser className="text-2xl cursor-pointer hover:text-gray-300 transition" />
+              <LoginPopup 
+                isOpen={isProfileHovered} 
+                onClose={() => setIsProfileHovered(false)} 
+              />
+            </div>
             {/* Mobile Menu Toggle */}
             <button 
               className="lg:hidden text-2xl" 
