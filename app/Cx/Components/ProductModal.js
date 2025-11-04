@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { FaTimes, FaStar, FaShoppingCart, FaFacebook, FaTwitter, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { CiHeart } from 'react-icons/ci';
 import { FaCopy, FaPinterest } from 'react-icons/fa6';
+import { openSans } from '../Font/font';
 
 const ProductModal = ({ isOpen, onClose, product }) => {
   const [selectedImage, setSelectedImage] = useState(0);
@@ -64,7 +65,7 @@ const ProductModal = ({ isOpen, onClose, product }) => {
   return (
     <>
       <div 
-        className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+        className={`fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 ${openSans.className}`}
         onClick={handleBackdropClick}
       >
         <div 

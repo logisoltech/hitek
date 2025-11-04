@@ -29,10 +29,12 @@ import { IoPrintOutline } from "react-icons/io5";
 import { PiRecycleLight } from "react-icons/pi";
 import { GrRotateRight } from "react-icons/gr";
 import { openSans } from '../Font/font';
+import ShoppingCartPopup from '../Components/ShoppingCartPopup';
 
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCartHovered, setIsCartHovered] = useState(false);
 
   return (
     <nav className="w-full">
@@ -95,11 +97,19 @@ const Navbar = () => {
 
           {/* Icons */}
           <div className="flex items-center gap-6">
-            <div className="relative">
+            <div 
+              className="relative"
+              onMouseEnter={() => setIsCartHovered(true)}
+              onMouseLeave={() => setIsCartHovered(false)}
+            >
               <CiShoppingCart className="text-2xl cursor-pointer hover:text-gray-300 transition" />
               <span className="absolute -top-2 -right-2 bg-[#00aeef] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                 2
               </span>
+              <ShoppingCartPopup 
+                isOpen={isCartHovered} 
+                onClose={() => setIsCartHovered(false)} 
+              />
             </div>
             <CiHeart className="text-2xl cursor-pointer hover:text-gray-300 transition" />
             <CiUser className="text-2xl cursor-pointer hover:text-gray-300 transition" />
