@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { FiArrowRight } from 'react-icons/fi';
 import { 
   FaFacebook,
@@ -162,30 +163,30 @@ const Navbar = () => {
       {/* Bottom Bar - Navigation */}
       <div className="bg-[#00aeef] text-white">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col lg:flex-row items-center justify-between">
+          <div className="flex flex-col lg:flex-row items-center justify-between lg:flex-nowrap">
             {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center">
-              <a href="#" className="flex items-center gap-2 px-4 py-4 bg-transparent hover:bg-[#00688f] transition">
-                <CiHome className="text-2xl" />
+            <div className="hidden lg:flex items-center shrink-0">
+              <a href="#" className="flex items-center gap-2 px-4 py-4 bg-transparent hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+                <CiHome className="text-2xl shrink-0" />
                 <span className="text-sm font-medium">Home</span>
               </a>
               <div 
-                className="relative"
+                className="relative shrink-0"
                 onMouseEnter={() => setIsAllProductsHovered(true)}
                 onMouseLeave={() => {
                   setIsAllProductsHovered(false);
                   setIsLaptopsHovered(false);
                 }}
               >
-                <a 
-                  href="#" 
-                  className={`flex items-center gap-2 px-4 py-4 transition ${
+                <Link 
+                  href="/all-products" 
+                  className={`flex items-center gap-2 px-4 py-4 transition whitespace-nowrap shrink-0 ${
                     isAllProductsHovered ? 'bg-[#00688f]' : 'hover:bg-[#00688f]'
                   }`}
                 >
                   <span className="text-sm">All Products</span>
-                  <FaChevronDown className="text-xs" />
-                </a>
+                  <FaChevronDown className="text-xs shrink-0" />
+                </Link>
 
                 {/* All Products Dropdown */}
                 {isAllProductsHovered && (
@@ -423,30 +424,30 @@ const Navbar = () => {
                   </div>
                 )}
               </div>
-              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition">
-                <CiLaptop className="text-2xl" />
+              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+                <CiLaptop className="text-2xl shrink-0" />
                 <span className="text-sm">Laptops</span>
-                <FaChevronDown className="text-xs" />
+                <FaChevronDown className="text-xs shrink-0" />
               </a>
-              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition">
-                <PiDesktopTowerThin className="text-2xl" />
+              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+                <PiDesktopTowerThin className="text-2xl shrink-0" />
                 <span className="text-sm">Desktop PCs</span>
-                <FaChevronDown className="text-xs" />
+                <FaChevronDown className="text-xs shrink-0" />
               </a>
-              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition">
-                <IoPrintOutline className="text-2xl" />
+              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+                <IoPrintOutline className="text-2xl shrink-0" />
                 <span className="text-sm">Printers & Toners</span>
-                <FaChevronDown className="text-xs" />
+                <FaChevronDown className="text-xs shrink-0" />
               </a>
-              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition">
-                <CiMonitor className="text-2xl" />
+              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+                <CiMonitor className="text-2xl shrink-0" />
                 <span className="text-sm">LED Monitors</span>
-                <FaChevronDown className="text-xs" />
+                <FaChevronDown className="text-xs shrink-0" />
               </a>
-              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition">
-                <GrRotateRight className="text-2xl" />
+              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+                <GrRotateRight className="text-2xl shrink-0" />
                 <span className="text-sm">Refurbished</span>
-                <FaChevronDown className="text-xs" />
+                <FaChevronDown className="text-xs shrink-0" />
               </a>
             </div>
 
@@ -457,11 +458,11 @@ const Navbar = () => {
                   <CiHome className="text-xl" />
                   <span className="text-sm font-medium">Home</span>
                 </a>
-                <a href="#" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
+                <Link href="/all-products" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
                   <CiBoxes className="text-xl" />
                   <span className="text-sm">All Products</span>
                   <FaChevronDown className="ml-auto" />
-                </a>
+                </Link>
                 <a href="#" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
                   <CiLaptop className="text-xl" />
                   <span className="text-sm">Laptops</span>
@@ -491,8 +492,8 @@ const Navbar = () => {
             </div>
 
             {/* Phone Number */}
-            <div className="hidden lg:flex items-center gap-2 px-6 py-4 border-l border-[#00aeef]">
-              <CiPhone />
+            <div className="hidden lg:flex items-center gap-2 px-6 py-4 border-l border-[#00aeef] shrink-0 whitespace-nowrap">
+              <CiPhone className="shrink-0" />
               <span className="font-medium">+92-213-2410225</span>
             </div>
           </div>
