@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import Image from 'next/image';
 import { FaChevronLeft, FaChevronRight, FaRegEye } from 'react-icons/fa';
 import { CiShoppingCart, CiHeart } from 'react-icons/ci';
 import { openSans } from '../Font/font';
+import ProductModal from '../Components/ProductModal';
 
 const Laptop = () => {
   const scrollContainerRef = useRef(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const scrollLeft = () => {
     if (scrollContainerRef.current) {
@@ -92,6 +95,16 @@ const Laptop = () => {
     return stars;
   };
 
+  const handleProductClick = (product) => {
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedProduct(null);
+  };
+
   return (
     <div className={`w-full py-8 lg:py-12 bg-white ${openSans.className}`}>
       <div className="max-w-7xl mx-auto px-8">
@@ -118,6 +131,7 @@ const Laptop = () => {
             {products.map((product, index) => (
               <div
                 key={index}
+                onClick={() => handleProductClick(product)}
                 className="relative bg-white border border-gray-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col shrink-0 w-[234px] h-[320px]"
               >
                 {product.label && (
@@ -127,7 +141,10 @@ const Laptop = () => {
                 )}
 
                 {/* Hover icons */}
-                <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <div 
+                  className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="bg-white rounded-full p-2 hover:bg-gray-100">
                     <CiHeart className="text-lg" />
                   </div>
@@ -180,6 +197,13 @@ const Laptop = () => {
           }
         `}</style>
       </div>
+
+      {/* Product Modal */}
+      <ProductModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        product={selectedProduct}
+      />
     </div>
   );
 };
