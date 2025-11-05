@@ -53,6 +53,7 @@ export default function AllProducts() {
 
   const products = [
     {
+      id: 'asus-zenbook-14',
       name: 'ASUS Zenbook 14 OLED Laptop',
       desc: 'ASUS Zenbook 14 OLED is a touch screen laptop...',
       price: '400,000',
@@ -62,6 +63,7 @@ export default function AllProducts() {
       label: { text: 'HOT', color: 'bg-red-500' }
     },
     {
+      id: 'hp-laptop-15',
       name: 'HP Laptop 15-fd0232nia',
       desc: 'HP Laptop 15-fd0232nia, FreeDOS 3.0, 15.6"',
       price: '112,300',
@@ -70,6 +72,7 @@ export default function AllProducts() {
       image: '/laptop-category.jpg'
     },
     {
+      id: 'hp-laserjet-m236dw',
       name: 'HP LaserJet MFP M236dw Printer',
       desc: 'HP LaserJet MFP M236dw Printer...',
       price: '54,360',
@@ -79,6 +82,7 @@ export default function AllProducts() {
       label: { text: 'BEST DEALS', color: 'bg-[#00aeef]' }
     },
     {
+      id: 'dell-22-led-p2217h',
       name: 'DELL 22" LED P2217H Monitor',
       desc: 'DELL 22" LED P2217H NEW',
       price: '25,000',
@@ -87,6 +91,7 @@ export default function AllProducts() {
       image: '/monitor-category.png'
     },
     {
+      id: 'dell-optiplex-5050mt',
       name: 'DELL OPTIPLEX 5050MT CI7',
       desc: 'DELL OPTIPLEX 5050MT CI7, 6TH GEN, 8GB, 256GB',
       price: '108,500',
@@ -95,6 +100,7 @@ export default function AllProducts() {
       image: '/laptop-category.jpg'
     },
     {
+      id: 'dell-led-se2222h',
       name: 'DELL LED SE2222H NEW',
       desc: 'DELL LED SE2222H NEW',
       price: '22,000',
@@ -105,6 +111,7 @@ export default function AllProducts() {
       label: { text: '25% OFF', color: 'bg-yellow-400 text-black' }
     },
     {
+      id: 'dell-vostro-3020',
       name: 'DELL VOSTRO 3020 CI3',
       desc: 'DELL VOSTRO 3020 CI3 13GEN 8GB 256GBSSD',
       price: '108,000',
@@ -113,6 +120,7 @@ export default function AllProducts() {
       image: '/laptop-category.jpg'
     },
     {
+      id: 'lenovo-ideapad-slim-3',
       name: 'Lenovo IdeaPad Slim 3 15',
       desc: 'Lenovo IdeaPad Slim 3 15 - 13th Gen Core i7 13620H',
       price: '106,000',
@@ -122,6 +130,7 @@ export default function AllProducts() {
       label: { text: 'SALE', color: 'bg-green-500' }
     },
     {
+      id: 'hp-pavilion-15',
       name: 'HP Pavilion 15 Laptop',
       desc: 'HP Pavilion 15 - Intel Core i5, 8GB RAM, 512GB SSD',
       price: '95,000',
@@ -131,6 +140,7 @@ export default function AllProducts() {
       label: { text: 'NEW', color: 'bg-blue-500' }
     },
     {
+      id: 'dell-inspiron-15-3000',
       name: 'DELL Inspiron 15 3000',
       desc: 'DELL Inspiron 15 3000 - Intel Celeron, 4GB RAM, 1TB HDD',
       price: '65,000',
@@ -139,6 +149,7 @@ export default function AllProducts() {
       image: '/laptop-category.jpg'
     },
     {
+      id: 'asus-rog-strix',
       name: 'ASUS ROG Strix Gaming Laptop',
       desc: 'ASUS ROG Strix - Intel i7, 16GB RAM, RTX 3060, 1TB SSD',
       price: '350,000',
@@ -148,6 +159,7 @@ export default function AllProducts() {
       label: { text: 'HOT', color: 'bg-red-500' }
     },
     {
+      id: 'lenovo-thinkpad-x1',
       name: 'Lenovo ThinkPad X1 Carbon',
       desc: 'Lenovo ThinkPad X1 Carbon - Intel i7, 16GB RAM, 512GB SSD',
       price: '280,000',
@@ -156,6 +168,7 @@ export default function AllProducts() {
       image: '/laptop-category.jpg'
     },
     {
+      id: 'hp-officejet-pro-9015e',
       name: 'HP OfficeJet Pro 9015e',
       desc: 'HP OfficeJet Pro 9015e All-in-One Printer',
       price: '45,000',
@@ -164,6 +177,7 @@ export default function AllProducts() {
       image: '/printer-category.png'
     },
     {
+      id: 'dell-ultrasharp-u2720q',
       name: 'DELL UltraSharp U2720Q Monitor',
       desc: 'DELL UltraSharp U2720Q 27" 4K IPS Monitor',
       price: '85,000',
@@ -173,6 +187,7 @@ export default function AllProducts() {
       label: { text: 'BEST DEALS', color: 'bg-[#00aeef]' }
     },
     {
+      id: 'samsung-odyssey-g7',
       name: 'Samsung Odyssey G7 Monitor',
       desc: 'Samsung Odyssey G7 32" Curved Gaming Monitor',
       price: '120,000',
@@ -181,6 +196,7 @@ export default function AllProducts() {
       image: '/monitor-category.png'
     },
     {
+      id: 'macbook-pro-14-m3',
       name: 'MacBook Pro 14" M3',
       desc: 'MacBook Pro 14" with M3 Chip, 18GB RAM, 512GB SSD',
       price: '450,000',
@@ -190,6 +206,7 @@ export default function AllProducts() {
       label: { text: 'PREMIUM', color: 'bg-purple-500' }
     },
     {
+      id: 'acer-predator-helios-300',
       name: 'Acer Predator Helios 300',
       desc: 'Acer Predator Helios 300 - Intel i7, 16GB RAM, RTX 3070',
       price: '320,000',
@@ -198,6 +215,7 @@ export default function AllProducts() {
       image: '/laptop-category.jpg'
     },
     {
+      id: 'hp-elitedesk-800-g6',
       name: 'HP EliteDesk 800 G6',
       desc: 'HP EliteDesk 800 G6 Desktop - Intel i5, 8GB RAM, 256GB SSD',
       price: '125,000',
@@ -206,6 +224,7 @@ export default function AllProducts() {
       image: '/laptop-category.jpg'
     },
     {
+      id: 'canon-pixma-ts3520',
       name: 'Canon PIXMA TS3520 Printer',
       desc: 'Canon PIXMA TS3520 All-in-One Inkjet Printer',
       price: '18,000',
@@ -214,6 +233,7 @@ export default function AllProducts() {
       image: '/printer-category.png'
     },
     {
+      id: 'viewsonic-vx2458-mhd',
       name: 'ViewSonic VX2458-MHD Monitor',
       desc: 'ViewSonic VX2458-MHD 24" Full HD Gaming Monitor',
       price: '42,000',
@@ -223,6 +243,7 @@ export default function AllProducts() {
       label: { text: '20% OFF', color: 'bg-yellow-400 text-black' }
     },
     {
+      id: 'msi-katana-gf76',
       name: 'MSI Katana GF76 Gaming Laptop',
       desc: 'MSI Katana GF76 - Intel i7, 16GB RAM, RTX 3050, 1TB SSD',
       price: '295,000',
@@ -231,6 +252,7 @@ export default function AllProducts() {
       image: '/laptop-category.jpg'
     },
     {
+      id: 'lg-27ul500-w',
       name: 'LG 27UL500-W Monitor',
       desc: 'LG 27UL500-W 27" 4K UHD IPS Monitor',
       price: '78,000',
@@ -507,8 +529,9 @@ export default function AllProducts() {
               {/* Product Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pl-4 mb-6">
                 {products.map((product, index) => (
-                  <div
-                    key={index}
+                  <Link
+                    key={product.id || index}
+                    href={`/product/${product.id || 'macbook-pro'}`}
                     className="relative bg-white border border-gray-300 rounded-sm overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
                   >
                     {product.label && (
@@ -554,7 +577,7 @@ export default function AllProducts() {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
 
@@ -583,7 +606,7 @@ export default function AllProducts() {
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(6, prev + 1))}
                   disabled={currentPage === 6}
-                  className="px-3 py-3 border border-blue-400 border-2 text-blue-400 rounded-full hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-3 border-2 border-blue-400 text-blue-400 rounded-full hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FaChevronRight className="text-sm" />
                 </button>
