@@ -95,5 +95,50 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Update shipping details for a user
+router.put('/:id/shipping', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      phone,
+      shipment_address,
+      province,
+      city,
+      address,
+    } = req.body;
+
+    if (!phone || !shipment_address || !province || !city || !address) {
+      return res.status(400).json({
+        error: 'phone, shipment_address, province, city, and address are required',
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        phone,
+        shipment_address,
+        province,
+        city,
+        address,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({
+      message: 'Shipping details updated successfully',
+      user: data,
+    });
+  } catch (error) {
+    console.error('Update shipping details error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
 

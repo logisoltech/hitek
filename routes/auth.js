@@ -222,43 +222,186 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Register endpoint
+// Register endpoint - Store directly in users table
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, ...userData } = req.body;
+    const { email, password, first_name, last_name } = req.body;
+
+    console.log('Registration attempt:', { email: email?.trim(), first_name: first_name?.trim(), last_name: last_name?.trim(), passwordLength: password?.length });
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Create auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password: password,
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const originalEmail = email.trim();
+
+    // Check if user already exists by fetching all users
+    console.log('Checking if user already exists...');
+    
+    let allUsers, fetchError;
+    try {
+      const result = await supabase
+        .from('users')
+        .select('*');
+      allUsers = result.data;
+      fetchError = result.error;
+    } catch (networkError) {
+      console.error('❌ Network error connecting to Supabase:', networkError);
+      console.error('Error type:', networkError.name);
+      console.error('Error message:', networkError.message);
+      console.error('Supabase URL:', supabaseUrl);
+      
+      const isDnsError = networkError.message?.includes('resolve') || 
+                        networkError.message?.includes('ENOTFOUND') ||
+                        networkError.code === 'ENOTFOUND';
+      
+      return res.status(500).json({ 
+        error: 'Database error occurred: ' + networkError.message,
+        details: isDnsError 
+          ? 'DNS resolution failed - cannot resolve Supabase hostname. Please check:\n' +
+            '- Your internet connection\n' +
+            '- DNS server configuration\n' +
+            '- If the Supabase URL is correct: ' + supabaseUrl
+          : 'Unable to connect to Supabase. Please check your internet connection and Supabase URL configuration.',
+        type: 'network_error',
+        url: supabaseUrl
+      });
+    }
+
+    if (fetchError) {
+      console.error('❌ Database query error:', fetchError);
+      return res.status(500).json({ 
+        error: 'Database connection failed. Please check your Supabase configuration.',
+        details: fetchError.message 
+      });
+    }
+
+    // Check if email already exists (case-insensitive)
+    const existingUser = allUsers?.find(u => {
+      if (!u.email) return false;
+      const userEmail = u.email.trim().toLowerCase();
+      return userEmail === normalizedEmail;
     });
 
-    if (authError) {
-      return res.status(400).json({ error: authError.message });
+    if (existingUser) {
+      console.log('User already exists with email:', normalizedEmail);
+      return res.status(400).json({ error: 'An account with this email already exists' });
     }
 
-    // If user is created and we have additional user data, insert into users table
-    if (authData.user && Object.keys(userData).length > 0) {
-      const { error: insertError } = await supabase
+    // Insert new user into users table (let database auto-generate ID if it's auto-increment)
+    console.log('Inserting new user into database...');
+    console.log('User data to insert:', {
+      email: originalEmail,
+      password: '***' + password.trim().substring(password.length - 2),
+      first_name: first_name ? first_name.trim() : null,
+      last_name: last_name ? last_name.trim() : null,
+    });
+    
+    let insertResult, insertError;
+    try {
+      // Try insert without .single() first to see if that's the issue
+      let result = await supabase
         .from('users')
         .insert({
-          id: authData.user.id,
-          email: authData.user.email,
-          ...userData,
-        });
-
-      if (insertError) {
-        console.error('Error inserting user data:', insertError);
+          email: originalEmail,
+          password: password.trim(), // Store password as plain text (matching login logic)
+          first_name: first_name ? first_name.trim() : null,
+          last_name: last_name ? last_name.trim() : null,
+        })
+        .select();
+      
+      console.log('Insert result (without .single()):', JSON.stringify(result, null, 2));
+      
+      insertError = result.error;
+      
+      // If no error, try to get the data
+      if (!insertError && result.data && result.data.length > 0) {
+        insertResult = result.data[0];
+        console.log('✅ Got user data from insert:', insertResult);
+      } else if (!insertError && result.data && result.data.length === 0) {
+        console.error('❌ Insert returned empty array - no data inserted');
+        // Try with .single() to get better error message
+        result = await supabase
+          .from('users')
+          .insert({
+            email: originalEmail,
+            password: password.trim(),
+            first_name: first_name ? first_name.trim() : null,
+            last_name: last_name ? last_name.trim() : null,
+          })
+          .select()
+          .single();
+        
+        insertResult = result.data;
+        insertError = result.error;
       }
+      
+      if (insertError) {
+        console.error('❌ Supabase insert error:', insertError);
+        console.error('Error code:', insertError.code);
+        console.error('Error message:', insertError.message);
+        console.error('Error details:', insertError.details);
+        console.error('Error hint:', insertError.hint);
+      } else if (!insertResult) {
+        console.error('❌ No data returned from insert, but no error either');
+      }
+    } catch (networkError) {
+      console.error('❌ Network error inserting user:', networkError);
+      console.error('Error type:', networkError.name);
+      console.error('Error message:', networkError.message);
+      console.error('Error stack:', networkError.stack);
+      return res.status(500).json({ 
+        error: 'Database error occurred: ' + networkError.message,
+        details: 'Unable to connect to Supabase. Please check your internet connection.',
+        type: 'network_error'
+      });
     }
 
+    if (insertError) {
+      console.error('❌ Error inserting user:', insertError);
+      return res.status(500).json({ 
+        error: 'Failed to create account. Please try again.',
+        details: insertError.message || JSON.stringify(insertError),
+        code: insertError.code
+      });
+    }
+
+    if (!insertResult) {
+      console.error('❌ Insert succeeded but no data returned');
+      return res.status(500).json({ 
+        error: 'User was created but data could not be retrieved. Please try logging in.',
+      });
+    }
+
+    console.log('✅ Registration successful for user:', originalEmail);
+    console.log('✅ Inserted user ID:', insertResult.id);
+
+    // Remove password from response for security
+    const { password: userPassword, ...userData } = insertResult;
+
+    // Create a simple session object (matching login format)
+    const session = {
+      access_token: 'custom_token_' + Date.now(),
+      user: {
+        id: insertResult.id,
+        email: insertResult.email,
+      },
+    };
+
     res.json({
-      user: authData.user,
-      session: authData.session,
+      user: {
+        id: insertResult.id,
+        email: insertResult.email,
+        first_name: insertResult.first_name || null,
+        last_name: insertResult.last_name || null,
+      },
+      session: session,
+      userData: userData,
     });
   } catch (error) {
     console.error('Register error:', error);

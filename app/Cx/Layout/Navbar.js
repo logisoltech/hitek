@@ -76,6 +76,7 @@ const Navbar = () => {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-4">
           {/* Logo */}
           <div className="flex items-center gap-3">
+            <Link href="/">
             <Image 
               src="/navbar-logo.png" 
               alt="Hi-Tek Computers Logo" 
@@ -83,6 +84,7 @@ const Navbar = () => {
               height={60}
               className="object-contain"
             />
+            </Link>
           </div>
 
           {/* Search Bar */}
@@ -110,7 +112,7 @@ const Navbar = () => {
               onMouseEnter={() => setIsCartHovered(true)}
               onMouseLeave={() => setIsCartHovered(false)}
             >
-              <CiShoppingCart className="text-2xl cursor-pointer hover:text-gray-300 transition" />
+              <Link href="/cart"><CiShoppingCart className="text-2xl cursor-pointer hover:text-gray-300 transition" /></Link>
               <span className="absolute -top-2 -right-2 bg-[#00aeef] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                 2
               </span>

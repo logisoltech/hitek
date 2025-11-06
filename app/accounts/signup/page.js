@@ -17,15 +17,31 @@ const SignInPage = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    name: '',
+    first_name: '',
+    last_name: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [showShippingForm, setShowShippingForm] = useState(false);
+  const [userId, setUserId] = useState(null);
+  const [shippingData, setShippingData] = useState({
+    phone: '',
+    shipment_address: '',
+    province: '',
+    city: '',
+    address: '',
+  });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setError('');
+  };
+
+  const handleShippingInputChange = (e) => {
+    const { name, value } = e.target;
+    setShippingData((prev) => ({ ...prev, [name]: value }));
     setError('');
   };
 
@@ -112,7 +128,7 @@ const SignInPage = () => {
 
     try {
       // Validate inputs
-      if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+      if (!formData.first_name || !formData.last_name || !formData.email || !formData.password || !formData.confirmPassword) {
         setError('Please fill in all fields');
         setLoading(false);
         return;
@@ -131,43 +147,139 @@ const SignInPage = () => {
       }
 
       // Call backend API for registration
-      const response = await fetch('http://localhost:3001/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email.trim(),
-          password: formData.password,
-          name: formData.name.trim(),
-        }),
-      });
+      let response;
+      try {
+        response = await fetch('http://localhost:3001/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email.trim(),
+            password: formData.password,
+            first_name: formData.first_name.trim(),
+            last_name: formData.last_name.trim(),
+          }),
+        });
+      } catch (fetchError) {
+        if (fetchError.name === 'TypeError' || fetchError.message.includes('fetch')) {
+          console.error('Backend server not reachable:', fetchError);
+          setError('Backend server is not running. Please start the server with: npm run server');
+          setLoading(false);
+          return;
+        }
+        throw fetchError;
+      }
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Registration failed');
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse response:', jsonError);
+        setError('Invalid response from server. Please check if the server is running correctly.');
         setLoading(false);
         return;
       }
 
-      // Registration successful
+      if (!response.ok) {
+        const errorMessage = data.error || 'Registration failed';
+        console.error('Backend registration error:', errorMessage);
+        setError(errorMessage);
+        setLoading(false);
+        return;
+      }
+
+      // Registration successful - show shipping form
       setSuccess(true);
       setError('');
+      setLoading(false);
 
-      // Store user data
+      // Store user data and ID
       if (data.user) {
+        setUserId(data.user.id);
         localStorage.setItem('user', JSON.stringify(data.user));
         localStorage.setItem('session', JSON.stringify(data.session));
       }
 
-      // Redirect to home page
+      // Show shipping details form after a short delay
       setTimeout(() => {
-        router.push('/');
-      }, 1000);
+        setShowShippingForm(true);
+        setSuccess(false);
+      }, 1500);
     } catch (err) {
       setError(err.message || 'An unexpected error occurred. Please try again.');
       console.error('Registration error:', err);
+      setLoading(false);
+    }
+  };
+
+  const handleShippingDetails = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      // Validate inputs
+      if (!shippingData.phone || !shippingData.shipment_address || !shippingData.province || !shippingData.city || !shippingData.address) {
+        setError('Please fill in all fields');
+        setLoading(false);
+        return;
+      }
+
+      // Call backend API to update user with shipping details
+      let response;
+      try {
+        response = await fetch(`http://localhost:3001/api/users/${userId}/shipping`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(shippingData),
+        });
+      } catch (fetchError) {
+        if (fetchError.name === 'TypeError' || fetchError.message.includes('fetch')) {
+          console.error('Backend server not reachable:', fetchError);
+          setError('Backend server is not running. Please start the server with: npm run server');
+          setLoading(false);
+          return;
+        }
+        throw fetchError;
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse response:', jsonError);
+        setError('Invalid response from server. Please check if the server is running correctly.');
+        setLoading(false);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorMessage = data.error || 'Failed to save shipping details';
+        console.error('Shipping details error:', errorMessage);
+        setError(errorMessage);
+        setLoading(false);
+        return;
+      }
+
+      // Update successful
+      setSuccess(true);
+      setError('');
+
+      // Update user data in localStorage
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const updatedUser = { ...storedUser, ...shippingData };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      // Redirect to home page
+      setTimeout(() => {
+        router.push('/');
+      }, 1500);
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred. Please try again.');
+      console.error('Shipping details error:', err);
       setLoading(false);
     }
   };
@@ -201,34 +313,36 @@ const SignInPage = () => {
           {/* Sign In / Sign Up Card */}
           <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
             {/* Tabs */}
-            <div className="flex border-b">
-              <button
-                onClick={() => {
-                  setActiveTab('signin');
-                  setError('');
-                }}
-                className={`flex-1 py-4 text-center font-semibold transition ${
-                  activeTab === 'signin'
-                    ? 'text-[#00aeef] border-b-2 border-[#00aeef]'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab('signup');
-                  setError('');
-                }}
-                className={`flex-1 py-4 text-center font-semibold transition ${
-                  activeTab === 'signup'
-                    ? 'text-[#00aeef] border-b-2 border-[#00aeef]'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Sign Up
-              </button>
-            </div>
+            {!showShippingForm && (
+              <div className="flex border-b">
+                <button
+                  onClick={() => {
+                    setActiveTab('signin');
+                    setError('');
+                  }}
+                  className={`flex-1 py-4 text-center font-semibold transition ${
+                    activeTab === 'signin'
+                      ? 'text-[#00aeef] border-b-2 border-[#00aeef]'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('signup');
+                    setError('');
+                  }}
+                  className={`flex-1 py-4 text-center font-semibold transition ${
+                    activeTab === 'signup'
+                      ? 'text-[#00aeef] border-b-2 border-[#00aeef]'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
 
             {/* Form Content */}
             <div className="p-8">
@@ -243,7 +357,11 @@ const SignInPage = () => {
               {success && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
                   <p className="text-sm text-green-600">
-                    {activeTab === 'signin' ? 'Login successful! Redirecting...' : 'Registration successful! Redirecting...'}
+                    {showShippingForm 
+                      ? 'Shipping details saved successfully! Redirecting...'
+                      : activeTab === 'signin' 
+                        ? 'Login successful! Redirecting...' 
+                        : 'Registration successful! Please provide your shipping details.'}
                   </p>
                 </div>
               )}
@@ -344,19 +462,36 @@ const SignInPage = () => {
               )}
 
               {/* Sign Up Form */}
-              {activeTab === 'signup' && (
+              {activeTab === 'signup' && !showShippingForm && (
                 <form onSubmit={handleSignUp}>
-                  {/* Name Field */}
+                  {/* First Name Field */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
+                      First Name
                     </label>
                     <input
                       type="text"
-                      name="name"
-                      value={formData.name}
+                      name="first_name"
+                      value={formData.first_name}
                       onChange={handleInputChange}
-                      placeholder="Enter your full name"
+                      placeholder="Enter your first name"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00aeef] focus:border-transparent text-gray-900"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  {/* Last Name Field */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      name="last_name"
+                      value={formData.last_name}
+                      onChange={handleInputChange}
+                      placeholder="Enter your last name"
                       className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00aeef] focus:border-transparent text-gray-900"
                       disabled={loading}
                       required
@@ -457,6 +592,111 @@ const SignInPage = () => {
                   >
                     <FcGoogle className="text-2xl" />
                     Sign up with Google
+                  </button>
+                </form>
+              )}
+
+              {/* Shipping Details Form */}
+              {showShippingForm && (
+                <form onSubmit={handleShippingDetails}>
+                  <div className="mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-2">Shipping Information</h2>
+                    <p className="text-sm text-gray-600 mb-4">Please provide your shipping details to complete your registration.</p>
+                  </div>
+
+                  {/* Phone Number Field */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={shippingData.phone}
+                      onChange={handleShippingInputChange}
+                      placeholder="Enter your phone number"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00aeef] focus:border-transparent text-gray-900"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  {/* Shipment Address Field */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Shipment Address
+                    </label>
+                    <input
+                      type="text"
+                      name="shipment_address"
+                      value={shippingData.shipment_address}
+                      onChange={handleShippingInputChange}
+                      placeholder="Enter your shipment address"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00aeef] focus:border-transparent text-gray-900"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  {/* Province Field */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Province
+                    </label>
+                    <input
+                      type="text"
+                      name="province"
+                      value={shippingData.province}
+                      onChange={handleShippingInputChange}
+                      placeholder="Enter your province"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00aeef] focus:border-transparent text-gray-900"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  {/* City Field */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={shippingData.city}
+                      onChange={handleShippingInputChange}
+                      placeholder="Enter your city"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00aeef] focus:border-transparent text-gray-900"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  {/* Address Field */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Address
+                    </label>
+                    <input
+                      type="text"
+                      name="address"
+                      value={shippingData.address}
+                      onChange={handleShippingInputChange}
+                      placeholder="Enter your address"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00aeef] focus:border-transparent text-gray-900"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-[#00aeef] hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 rounded-md font-bold flex items-center justify-center gap-2 transition"
+                  >
+                    {loading ? 'SAVING...' : 'SAVE SHIPPING DETAILS'}
+                    {!loading && <FiArrowRight />}
                   </button>
                 </form>
               )}
