@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -9,25 +9,10 @@ import Navbar from '../Cx/Layout/Navbar';
 import Footer from '../Cx/Layout/Footer';
 import { openSans } from '../Cx/Font/font';
 
-const initialCartItems = [
-  {
-    id: 1,
-    name: '4K UHD LED Smart TV with Chromecast Built-in',
-    price: 60000,
-    quantity: 1,
-    thumbnailLabel: 'TV',
-  },
-  {
-    id: 2,
-    name: 'Wired Over-Ear Gaming Headphones with USB',
-    price: 10000,
-    quantity: 3,
-    thumbnailLabel: 'HP',
-  },
-];
-
-const formatCurrency = (value) =>
-  `PKR ${value.toLocaleString('en-PK', { minimumFractionDigits: 0 })}`;
+const formatCurrency = (value) => {
+  const numeric = Number(value) || 0;
+  return `PKR ${numeric.toLocaleString('en-PK', { minimumFractionDigits: 0 })}`;
+};
 
 const paymentMethods = [
   {
@@ -64,6 +49,9 @@ const paymentMethods = [
 
 const CheckoutPage = () => {
   const router = useRouter();
+  const [cartItems, setCartItems] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState('');
   const [billingInfo, setBillingInfo] = useState({
     firstName: '',
     lastName: '',
@@ -87,9 +75,48 @@ const CheckoutPage = () => {
   const [orderNotes, setOrderNotes] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
 
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setProductsLoading(true);
+      setProductsError('');
+
+      try {
+        const response = await fetch('http://localhost:3001/api/laptops');
+        if (!response.ok) {
+          throw new Error('Failed to load products. Please try again.');
+        }
+
+        const data = await response.json();
+        const normalizedItems = (Array.isArray(data) ? data : []).map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: Number(item.price) || 0,
+          quantity: 1,
+          image: item.image || '',
+          brand: item.brand || '',
+          model: item.model || '',
+        }));
+
+        if (normalizedItems.length === 0) {
+          setProductsError('No products available yet.');
+        }
+
+        setCartItems(normalizedItems);
+      } catch (error) {
+        console.error('Error fetching products for checkout:', error);
+        setProductsError(error.message || 'Failed to load products.');
+        setCartItems([]);
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   const { subTotal, taxAmount, total } = useMemo(() => {
-    const subTotalValue = initialCartItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
+    const subTotalValue = cartItems.reduce(
+      (sum, item) => sum + (Number(item.price) || 0) * (item.quantity || 0),
       0,
     );
     const taxValue = Math.round(subTotalValue * 0.02);
@@ -98,7 +125,7 @@ const CheckoutPage = () => {
       taxAmount: taxValue,
       total: subTotalValue + taxValue,
     };
-  }, []);
+  }, [cartItems]);
 
   const handleBillingChange = (field) => (event) => {
     setBillingInfo((prev) => ({ ...prev, [field]: event.target.value }));
@@ -112,6 +139,16 @@ const CheckoutPage = () => {
 
   const handlePlaceOrder = (event) => {
     event.preventDefault();
+
+    if (productsLoading) {
+      setStatusMessage('Please wait while we load your products.');
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      setStatusMessage('Your cart is empty. Add a product before placing the order.');
+      return;
+    }
 
     if (!billingInfo.firstName || !billingInfo.lastName || !billingInfo.address || !billingInfo.phone) {
       setStatusMessage('Please fill in all required billing fields before placing the order.');
@@ -458,26 +495,49 @@ const CheckoutPage = () => {
                 <p className="text-xs text-gray-500">Review your order details before placing it.</p>
               </div>
 
-              <div className="divide-y divide-gray-100">
-                {initialCartItems.map((item) => (
-                  <div key={item.id} className="px-6 py-4 flex items-center gap-4">
-                    <div className="hidden md:flex h-14 w-20 items-center justify-center rounded-xs bg-gray-100 text-sm  text-gray-500">
-                      {item.thumbnailLabel}
+              {productsLoading ? (
+                <div className="px-6 py-8 text-sm text-gray-600 text-center">
+                  Loading products...
+                </div>
+              ) : cartItems.length === 0 ? (
+                <div
+                  className={`px-6 py-8 text-sm text-center ${
+                    productsError ? 'text-red-600' : 'text-gray-600'
+                  }`}
+                >
+                  {productsError || 'No products in your cart.'}
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {cartItems.map((item) => (
+                    <div key={item.id} className="px-6 py-4 flex items-center gap-4">
+                      <div className="hidden md:flex h-14 w-20 items-center justify-center rounded-xs bg-gray-100 overflow-hidden">
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <span className="text-sm text-gray-500">
+                            {(item.brand || item.model || 'LP').toString().slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800 leading-snug">{item.name}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {item.quantity} ×{' '}
+                          <span className="text-[#00aeef]">{formatCurrency(item.price)}</span>
+                        </p>
+                      </div>
+                      <span className="text-sm text-gray-900">
+                        {formatCurrency((Number(item.price) || 0) * (item.quantity || 0))}
+                      </span>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm  text-gray-800 leading-snug">
-                        {item.name}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {item.quantity} × <span className="text-[#00aeef] ">{formatCurrency(item.price)}</span>
-                      </p>
-                    </div>
-                    <span className="text-sm  text-gray-900">
-                      {formatCurrency(item.price * item.quantity)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               <div className="px-6 py-5 space-y-3 border-t border-gray-100">
                 <div className="flex items-center justify-between text-sm text-gray-600">
@@ -505,7 +565,8 @@ const CheckoutPage = () => {
               <div className="px-6 py-5 border-t border-gray-100">
                 <button
                   type="submit"
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xs bg-[#00aeef] px-5 py-3 text-sm  text-white hover:bg-[#0099d9] transition"
+                  disabled={productsLoading || cartItems.length === 0}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xs bg-[#00aeef] px-5 py-3 text-sm  text-white hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                 >
                   PLACE ORDER <FiArrowRight className="text-base" />
                 </button>

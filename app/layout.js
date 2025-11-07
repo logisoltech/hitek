@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Poppins } from "next/font/google";
+import { CartProvider } from "./Cx/Providers/CartProvider";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -18,7 +19,7 @@ export default function RootLayout({ children }) {
       <body
         className={`${poppins.variable} antialiased overflow-x-hidden`}
       >
-        {children}
+        <CartProvider>{children}</CartProvider>
       </body>
     </html>
   );

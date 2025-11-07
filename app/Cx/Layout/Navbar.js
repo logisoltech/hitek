@@ -34,6 +34,7 @@ import { GrRotateRight } from "react-icons/gr";
 import { openSans } from '../Font/font';
 import ShoppingCartPopup from '../Components/ShoppingCartPopup';
 import LoginPopup from '../Components/LoginPopup';
+import { useCart } from '../Providers/CartProvider';
 
 
 const Navbar = () => {
@@ -43,6 +44,7 @@ const Navbar = () => {
   const [isAllProductsHovered, setIsAllProductsHovered] = useState(false);
   const [isLaptopsHovered, setIsLaptopsHovered] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState('HP');
+  const { cartCount } = useCart();
 
   return (
     <nav className="w-full">
@@ -112,10 +114,14 @@ const Navbar = () => {
               onMouseEnter={() => setIsCartHovered(true)}
               onMouseLeave={() => setIsCartHovered(false)}
             >
-              <Link href="/cart"><CiShoppingCart className="text-2xl cursor-pointer hover:text-gray-300 transition" /></Link>
-              <span className="absolute -top-2 -right-2 bg-[#00aeef] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                2
-              </span>
+              <Link href="/cart">
+                <CiShoppingCart className="text-2xl cursor-pointer hover:text-gray-300 transition" />
+              </Link>
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#00aeef] text-white text-xs rounded-full min-w-5 h-5 flex items-center justify-center font-bold px-1">
+                  {cartCount}
+                </span>
+              )}
               {isCartHovered && (
                 <>
                   {/* Invisible bridge to maintain hover across the gap */}
@@ -125,7 +131,7 @@ const Navbar = () => {
                   />
                   <ShoppingCartPopup 
                     isOpen={isCartHovered} 
-                    onClose={() => setIsCartHovered(false)} 
+                    onClose={() => setIsCartHovered(false)}
                   />
                 </>
               )}

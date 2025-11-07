@@ -7,71 +7,55 @@ import { FiMinus, FiPlus, FiTrash2, FiArrowRight } from 'react-icons/fi';
 import Navbar from '../Cx/Layout/Navbar';
 import Footer from '../Cx/Layout/Footer';
 import { openSans } from '../Cx/Font/font';
+import { useCart } from '../Cx/Providers/CartProvider';
 
-const initialCartItems = [
-  {
-    id: 1,
-    name: '4K UHD LED Smart TV with Chromecast Built-in',
-    price: 60000,
-    quantity: 1,
-    thumbnailLabel: 'TV',
-  },
-  {
-    id: 2,
-    name: 'Wired Over-Ear Gaming Headphones with USB',
-    price: 10000,
-    quantity: 3,
-    thumbnailLabel: 'HP',
-  },
-];
-
-const formatCurrency = (value) =>
-  `PKR ${value.toLocaleString('en-PK', { minimumFractionDigits: 0 })}`;
+const formatCurrency = (value) => {
+  const numeric = Number(value) || 0;
+  return `PKR ${numeric.toLocaleString('en-PK', { minimumFractionDigits: 0 })}`;
+};
 
 const CartPage = () => {
   const router = useRouter();
-  const [cartItems, setCartItems] = useState(initialCartItems);
+  const { cartItems, cartSubtotal, updateQuantity, removeFromCart } = useCart();
   const [couponCode, setCouponCode] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
 
-  const { subTotal, taxAmount, total } = useMemo(() => {
-    const subTotalValue = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const taxValue = Math.round(subTotalValue * 0.02); // 2% tax to mirror design
-    return {
-      subTotal: subTotalValue,
-      taxAmount: taxValue,
-      total: subTotalValue + taxValue,
-    };
-  }, [cartItems]);
+  const taxAmount = useMemo(() => Math.round(cartSubtotal * 0.02), [cartSubtotal]);
+  const total = useMemo(() => cartSubtotal + taxAmount, [cartSubtotal, taxAmount]);
 
   const handleIncrement = (id) => {
-    setCartItems((items) =>
-      items.map((item) =>
-        item.id === id ? { ...item, quantity: Math.min(item.quantity + 1, 9) } : item,
-      ),
-    );
+    const item = cartItems.find((cartItem) => cartItem.id === id);
+    if (!item) return;
+    updateQuantity(id, item.quantity + 1);
     setStatusMessage('');
   };
 
   const handleDecrement = (id) => {
-    setCartItems((items) =>
-      items.map((item) =>
-        item.id === id ? { ...item, quantity: Math.max(item.quantity - 1, 1) } : item,
-      ),
-    );
+    const item = cartItems.find((cartItem) => cartItem.id === id);
+    if (!item) return;
+    const newQuantity = Math.max(1, item.quantity - 1);
+    updateQuantity(id, newQuantity);
     setStatusMessage('');
   };
 
   const handleRemoveItem = (id) => {
-    setCartItems((items) => items.filter((item) => item.id !== id));
+    removeFromCart(id);
     setStatusMessage('Item removed from cart.');
   };
 
   const handleUpdateCart = () => {
+    if (cartItems.length === 0) {
+      setStatusMessage('No products in the cart to update.');
+      return;
+    }
     setStatusMessage('Cart updated successfully.');
   };
 
   const handleProceedToCheckout = () => {
+    if (cartItems.length === 0) {
+      setStatusMessage('Add products to your cart before proceeding to checkout.');
+      return;
+    }
     router.push('/checkout');
   };
 
@@ -86,7 +70,9 @@ const CartPage = () => {
 
   const renderEmptyState = () => (
     <div className="p-8 text-center">
-      <h3 className="text-lg font-semibold text-gray-800 mb-2">Your cart is currently empty</h3>
+      <h3 className="text-lg font-semibold text-gray-800 mb-2">
+        Your cart is currently empty
+      </h3>
       <p className="text-sm text-gray-500 mb-6">
         Explore our latest products and add your favorites to the cart.
       </p>
@@ -159,8 +145,12 @@ const CartPage = () => {
                           >
                             <FiTrash2 className="text-lg" />
                           </button>
-                          <div className="hidden md:flex h-16 w-24 items-center justify-center rounded-lg bg-gray-100 text-sm font-semibold text-gray-500">
-                            {item.thumbnailLabel}
+                          <div className="hidden md:flex h-16 w-24 items-center justify-center rounded-lg bg-gray-100 overflow-hidden">
+                            <img
+                              src={item.image || '/laptop-category.jpg'}
+                              alt={item.name}
+                              className="h-full w-full object-contain"
+                            />
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-800 leading-snug">
@@ -214,7 +204,8 @@ const CartPage = () => {
                     <button
                       type="button"
                       onClick={handleUpdateCart}
-                      className="inline-flex items-center justify-center rounded-xs bg-[#00aeef] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0099d9] transition"
+                      disabled={cartItems.length === 0}
+                      className="inline-flex items-center justify-center rounded-xs bg-[#00aeef] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                     >
                       UPDATE CART
                     </button>
@@ -234,7 +225,7 @@ const CartPage = () => {
               <div className="px-6 py-5 space-y-4">
                 <div className="flex items-center justify-between text-sm text-gray-600">
                   <span className="font-medium text-gray-700">Sub-total</span>
-                  <span>{formatCurrency(subTotal)}</span>
+                  <span>{formatCurrency(cartSubtotal)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm text-gray-600">
                   <span className="font-medium text-gray-700">Shipping</span>
@@ -256,7 +247,8 @@ const CartPage = () => {
                 <button
                   type="button"
                   onClick={handleProceedToCheckout}
-                  className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xs bg-[#00aeef] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0099d9] transition"
+                  disabled={cartItems.length === 0}
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xs bg-[#00aeef] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                 >
                   PROCEED TO CHECKOUT <FiArrowRight className="text-base" />
                 </button>

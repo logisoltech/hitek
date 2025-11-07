@@ -11,90 +11,79 @@ import { MdMoneyOff, MdAttachMoney } from 'react-icons/md';
 import Navbar from '../../Cx/Layout/Navbar';
 import Footer from '../../Cx/Layout/Footer';
 import { openSans } from '../../Cx/Font/font';
+import { useCart } from '../../Cx/Providers/CartProvider';
 
 const ProductPage = () => {
   const params = useParams();
   const productId = params?.id;
   
   const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedColor, setSelectedColor] = useState('light-gray');
   const [quantity, setQuantity] = useState(1);
-  const [selectedMemory, setSelectedMemory] = useState('16GB');
-  const [selectedSize, setSelectedSize] = useState('14-inch');
-  const [selectedStorage, setSelectedStorage] = useState('1TB');
   const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [addMessage, setAddMessage] = useState('');
+  const { addToCart } = useCart();
   const thumbnailScrollRef = useRef(null);
 
-  // Mock product data - in real app, fetch from API based on productId
   useEffect(() => {
-    // This would typically fetch from an API
-    // For now, we'll use mock data
-    const mockProducts = {
-      'asus-zenbook-14': {
-        id: 'asus-zenbook-14',
-        name: 'ASUS Zenbook 14 OLED Laptop',
-        title: 'ASUS Zenbook 14 OLED is a touch screen laptop with Intel Core i7 processor, 16GB RAM, 512GB SSD',
-        price: 400000,
-        oldPrice: 450000,
-        discount: 11,
-        rating: 5,
-        reviews: 738,
-        sku: 'A264671',
-        brand: 'ASUS',
-        category: 'Laptops',
-        availability: 'In Stock',
-        images: ['/big-laptop.png', '/big-laptop.png', '/big-laptop.png', '/big-laptop.png', '/big-laptop.png', '/big-laptop.png']
-      },
-      'hp-laptop-15': {
-        id: 'hp-laptop-15',
-        name: 'HP Laptop 15-fd0232nia',
-        title: 'HP Laptop 15-fd0232nia, FreeDOS 3.0, 15.6"',
-        price: 112300,
-        oldPrice: 150000,
-        discount: 25,
-        rating: 5,
-        reviews: 536,
-        sku: 'HP-15-FD',
-        brand: 'HP',
-        category: 'Laptops',
-        availability: 'In Stock',
-        images: ['/laptop-category.jpg', '/laptop-category.jpg', '/laptop-category.jpg']
-      },
-      'macbook-pro': {
-        id: 'macbook-pro',
-        name: 'MacBook Pro',
-        title: '2020 Apple MacBook Pro with Apple M1 Chip (13-inch, 8GB RAM, 256GB SSD Storage) - Space Gray',
-        price: 250000,
-        oldPrice: 350000,
-        discount: 21,
-        rating: 4.7,
-        reviews: 21671,
-        sku: 'A264671',
-        brand: 'Apple',
-        category: 'Laptops',
-        availability: 'In Stock',
-        images: ['/big-laptop.png', '/big-laptop.png', '/big-laptop.png', '/big-laptop.png', '/big-laptop.png', '/big-laptop.png']
+    const fetchProduct = async () => {
+      if (!productId) return;
+      setLoading(true);
+      setError('');
+
+      try {
+        const response = await fetch(`http://localhost:3001/api/laptops/${productId}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('Product not found.');
+          }
+          throw new Error('Failed to load product details. Please try again.');
+        }
+
+        const data = await response.json();
+        const parseNumeric = (value) => {
+          if (value === null || value === undefined) return 0;
+          if (typeof value === 'number') return value;
+          const cleaned = value.toString().replace(/[^\d.-]/g, '');
+          return Number(cleaned) || 0;
+        };
+
+        const normalized = {
+          ...data,
+          id: data.id?.toString?.() ? data.id.toString() : data.id,
+          price: parseNumeric(data.price),
+          rating: parseNumeric(data.rating) || 4.7,
+          reviews: parseNumeric(data.reviews) || 0,
+          brand: data.brand || 'Unknown',
+          model: data.model || data.series || `SKU-${data.id}`,
+        };
+        setProduct(normalized);
+      } catch (err) {
+        console.error('Error fetching product details:', err);
+        setError(err.message || 'Failed to load product details.');
+        setProduct(null);
+      } finally {
+        setLoading(false);
       }
     };
 
-    // Get product by ID or use default
-    const foundProduct = mockProducts[productId] || mockProducts['macbook-pro'];
-    setProduct(foundProduct);
+    fetchProduct();
   }, [productId]);
 
-  const images = product?.images || [
-    '/big-laptop.png',
-    '/big-laptop.png',
-    '/big-laptop.png',
-    '/big-laptop.png',
-    '/big-laptop.png',
-    '/big-laptop.png'
-  ];
-
-  const colors = [
-    { name: 'light-gray', class: 'bg-gray-300' },
-    { name: 'white', class: 'bg-white border border-gray-300' }
-  ];
+  const images = React.useMemo(() => {
+    if (product?.image) {
+      return [product.image, product.image, product.image].filter(Boolean);
+    }
+    return [
+      '/big-laptop.png',
+      '/big-laptop.png',
+      '/big-laptop.png',
+      '/big-laptop.png',
+      '/big-laptop.png',
+      '/big-laptop.png'
+    ];
+  }, [product?.image]);
 
   const renderStars = (rating) => {
     const stars = [];
@@ -128,17 +117,83 @@ const ProductPage = () => {
     }
   };
 
-  if (!product) {
+  if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${openSans.className}`}>
-        <div>Loading...</div>
+        <div className="text-gray-600">Loading product details...</div>
       </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className={`min-h-screen flex flex-col ${openSans.className}`}>
+        <Navbar />
+        <div className="grow flex items-center justify-center px-4">
+          <div className="max-w-md text-center space-y-4">
+            <h1 className="text-2xl font-semibold text-gray-900">Product Unavailable</h1>
+            <p className="text-gray-600">{error}</p>
+            <Link
+              href="/all-products"
+              className="inline-flex items-center justify-center rounded-xs bg-[#00aeef] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0099d9] transition"
+            >
+              Back to Products
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!product) {
+    return null;
   }
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('en-PK').format(price);
   };
+
+  const productTitle = product.name || 'Product';
+  const productBrand = product.brand || 'Unknown';
+  const productModel = product.model || `SKU-${product.id}`;
+  const availability = 'In Stock';
+  const rating = product.rating || 4.7;
+  const reviews = product.reviews || 125;
+  const categoryLabel = product.category || 'Laptops';
+  const handleAddToCart = () => {
+    if (!product) return;
+    addToCart(
+      {
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image || '/laptop-category.jpg',
+        brand: product.brand,
+        model: product.model,
+      },
+      quantity,
+    );
+    setAddMessage('Product added to cart.');
+    setTimeout(() => setAddMessage(''), 2500);
+  };
+
+
+  const specList = [
+    { label: 'Processor', value: product.processor },
+    { label: 'Graphics', value: product.graphics },
+    { label: 'Display', value: product.display },
+    { label: 'Memory', value: product.memory },
+    { label: 'Storage', value: product.storage },
+    { label: 'Adapter', value: product.adapter },
+    { label: 'Wi-Fi', value: product.wifi },
+    { label: 'Bluetooth', value: product.bluetooth },
+    { label: 'Camera', value: product.camera },
+    { label: 'Ports', value: product.port },
+    { label: 'Operating System', value: product.os },
+    { label: 'Microphone', value: product.mic },
+    { label: 'Battery', value: product.battery },
+  ].filter((spec) => spec.value);
 
   return (
     <div className={`min-h-screen flex flex-col bg-white ${openSans.className}`}>
@@ -154,7 +209,7 @@ const ProductPage = () => {
             </Link>
             <span className="text-gray-900">›</span>
             <Link href="/all-products" className="text-gray-600 hover:text-[#00aeef] transition">
-              {product.category}
+              {categoryLabel}
             </Link>
             <span className="text-gray-900">›</span>
             <span className="text-blue-500">{product.name}</span>
@@ -174,6 +229,7 @@ const ProductPage = () => {
                 alt={product.name}
                 width={600}
                 height={500}
+                unoptimized
                 className="w-full h-auto object-contain max-w-full max-h-full"
               />
             </div>
@@ -208,6 +264,7 @@ const ProductPage = () => {
                       alt={`Thumbnail ${index + 1}`}
                       width={80}
                       height={80}
+                      unoptimized
                       className="w-20 h-20 object-contain"
                     />
                   </button>
@@ -231,104 +288,47 @@ const ProductPage = () => {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex items-center gap-1">
-                  {renderStars(product.rating)}
+                  {renderStars(rating)}
                 </div>
-                <span className="text-sm text-black font-bold">{product.rating} Star Rating</span>
-                <span className="text-sm text-gray-600">({formatPrice(product.reviews)} User feedback)</span>
+                <span className="text-sm text-black font-bold">{rating} Star Rating</span>
+                <span className="text-sm text-gray-600">({formatPrice(reviews)} User feedback)</span>
               </div>
               <h1 className="text-xl text-gray-900 mb-4">
-                {product.title || product.name}
+                {productTitle}
               </h1>
             </div>
 
             {/* SKU and Brand */}
             <div className='flex flex-col sm:flex-row justify-between gap-4'>
               <div className="space-y-1 text-sm text-gray-600">
-                <p>Sku: <span className="font-bold text-black">{product.sku}</span></p>
-                <p>Brand: <span className="font-bold text-black">{product.brand}</span></p>
+                <p>Sku: <span className="font-bold text-black">{productModel}</span></p>
+                <p>Brand: <span className="font-bold text-black">{productBrand}</span></p>
               </div>
 
               <div className="space-y-1 text-sm">
-                <p className="text-gray-600 font-medium">Availability: <span className="font-bold text-green-500">{product.availability}</span></p>
-                <p className="text-gray-600">Category: <span className="font-bold text-black">{product.category}</span></p>
+                <p className="text-gray-600 font-medium">Availability: <span className="font-bold text-green-500">{availability}</span></p>
+                <p className="text-gray-600">Category: <span className="font-bold text-black">{categoryLabel}</span></p>
               </div>
             </div>
 
             {/* Pricing */}
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-3xl font-bold text-[#00aeef]">PKR {formatPrice(product.price)}</span>
-              {product.oldPrice && (
-                <>
-                  <span className="text-xl text-gray-400 line-through">PKR {formatPrice(product.oldPrice)}</span>
-                  <span className="bg-yellow-400 text-black px-2 py-1 rounded text-sm font-bold">{product.discount}% OFF</span>
-                </>
-              )}
             </div>
 
-            {/* Row 1: Colors and Memory */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Color Options */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Color:</label>
-                <div className="flex gap-2">
-                  {colors.map((color) => (
-                    <button
-                      key={color.name}
-                      onClick={() => setSelectedColor(color.name)}
-                      className={`w-10 h-10 rounded-full border-2 ${
-                        selectedColor === color.name ? 'border-[#00aeef]' : 'border-gray-300'
-                      } ${color.class}`}
-                    />
-                  ))}
-                </div>
+            {/* Key Specifications */}
+            {specList.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 border-y border-gray-200">
+                {specList.map((spec) => (
+                  <div key={spec.label} className="text-sm text-gray-700 flex flex-col gap-1">
+                    <span className="font-medium text-gray-500 uppercase tracking-wide text-xs">
+                      {spec.label}
+                    </span>
+                    <span className="font-semibold text-gray-900">{spec.value}</span>
+                  </div>
+                ))}
               </div>
-
-              {/* Memory Dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Memory:</label>
-                <select
-                  value={selectedMemory}
-                  onChange={(e) => setSelectedMemory(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef] text-gray-900"
-                >
-                  <option>16GB unified memory</option>
-                  <option>8GB unified memory</option>
-                  <option>32GB unified memory</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Row 2: Size and Storage */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Size Dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Size:</label>
-                <select
-                  value={selectedSize}
-                  onChange={(e) => setSelectedSize(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef] text-gray-900"
-                >
-                  <option>14-inch Liquid Retina XDR display</option>
-                  <option>13-inch Retina display</option>
-                  <option>16-inch Liquid Retina XDR display</option>
-                </select>
-              </div>
-
-              {/* Storage Dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Storage:</label>
-                <select
-                  value={selectedStorage}
-                  onChange={(e) => setSelectedStorage(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef] text-gray-900"
-                >
-                  <option>1TB SSD Storage</option>
-                  <option>256GB SSD Storage</option>
-                  <option>512GB SSD Storage</option>
-                  <option>2TB SSD Storage</option>
-                </select>
-              </div>
-            </div>
+            )}
 
             {/* Quantity Selector */}
             <div>
@@ -356,14 +356,22 @@ const ProductPage = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className='flex gap-3'>
-              <button className="flex-1 bg-[#00aeef] hover:bg-[#0099d9] text-white rounded-sm font-bold py-3 flex items-center justify-center gap-2 transition">
+            <div className='flex gap-3 flex-wrap'>
+              <button
+                onClick={handleAddToCart}
+                className="flex-1 min-w-[160px] bg-[#00aeef] hover:bg-[#0099d9] text-white rounded-sm font-bold py-3 flex items-center justify-center gap-2 transition"
+              >
                 <FaShoppingCart />
                 ADD TO CART
               </button>
-              <button className="flex-1 bg-white border-2 border-[#00aeef] text-[#00aeef] hover:bg-[#00aeef] hover:text-white rounded-sm font-bold py-3 transition">
+              <button className="flex-1 min-w-[160px] bg-white border-2 border-[#00aeef] text-[#00aeef] hover:bg-[#00aeef] hover:text-white rounded-sm font-bold py-3 transition">
                 BUY NOW
               </button>
+              {addMessage && (
+                <div className="basis-full text-sm font-medium text-green-600 mt-2">
+                  {addMessage}
+                </div>
+              )}
             </div>
 
             {/* Add to Wishlist and Share Product */}
@@ -433,17 +441,16 @@ const ProductPage = () => {
             <div className="lg:col-span-6 pr-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4">Description</h3>
               <div className="text-sm text-gray-600 space-y-3">
-                <p>
-                  The MacBook Pro is a game-changing laptop that delivers exceptional performance and stunning visuals. 
-                  Powered by the revolutionary Apple M1 Pro or M1 Max chip, this laptop offers unprecedented speed and 
-                  efficiency for professionals and creators.
-                </p>
-                <p>
-                  Experience the breathtaking Liquid Retina XDR display that brings your content to life with incredible 
-                  detail, vibrant colors, and exceptional brightness. The advanced camera and studio-quality audio system 
-                  ensure you look and sound your best in video calls and recordings.
-                </p>
-               
+                {product.description ? (
+                  product.description.split('\n').map((paragraph, index) => (
+                    <p key={index}>{paragraph}</p>
+                  ))
+                ) : (
+                  <p>
+                    Detailed description for this product will be available soon. Please review the specifications for more
+                    information about performance and features.
+                  </p>
+                )}
               </div>
             </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import Navbar from '../Cx/Layout/Navbar';
@@ -20,6 +20,58 @@ export default function AllProducts() {
   const [sortBy, setSortBy] = useState('Most Popular');
   const [selectedTags, setSelectedTags] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [fetchError, setFetchError] = useState('');
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoadingProducts(true);
+      setFetchError('');
+
+      try {
+        const response = await fetch('http://localhost:3001/api/laptops');
+        if (!response.ok) {
+          throw new Error('Failed to load products. Please try again.');
+        }
+
+        const data = await response.json();
+        const parseNumeric = (value, fallback = 0) => {
+          if (value === null || value === undefined) return fallback;
+          if (typeof value === 'number') return value;
+          const cleaned = value.toString().replace(/[^\d.-]/g, '');
+          const num = Number(cleaned);
+          return Number.isNaN(num) ? fallback : num;
+        };
+
+        const normalized = (Array.isArray(data) ? data : []).map((item) => ({
+          ...item,
+          price: parseNumeric(item.price),
+          rating: parseNumeric(item.rating, 5),
+          reviews: parseNumeric(item.reviews, 120),
+          image: item.image || '/laptop-category.jpg',
+          description: item.description || '',
+        }));
+
+        setProducts(normalized);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        setFetchError(error.message || 'Failed to load products.');
+        setProducts([]);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  const formatCurrency = (value) =>
+    (Number(value) || 0).toLocaleString('en-PK');
+
+  const formatNumber = (value) =>
+    (Number(value) || 0).toLocaleString('en-US');
 
   const categories = [
     'Laptops',
@@ -49,217 +101,6 @@ export default function AllProducts() {
   const popularTags = [
     'Game', 'Laptop', 'Intel', 'Asus Laptops', 'Macbook', 'SSD', 
     'Graphics Card', 'Processor', 'Slim', 'Ryzen', 'AMD', 'Microsoft', 'Samsung'
-  ];
-
-  const products = [
-    {
-      id: 'asus-zenbook-14',
-      name: 'ASUS Zenbook 14 OLED Laptop',
-      desc: 'ASUS Zenbook 14 OLED is a touch screen laptop...',
-      price: '400,000',
-      rating: 5,
-      reviews: 738,
-      image: '/laptop-category.jpg',
-      label: { text: 'HOT', color: 'bg-red-500' }
-    },
-    {
-      id: 'hp-laptop-15',
-      name: 'HP Laptop 15-fd0232nia',
-      desc: 'HP Laptop 15-fd0232nia, FreeDOS 3.0, 15.6"',
-      price: '112,300',
-      rating: 5,
-      reviews: 536,
-      image: '/laptop-category.jpg'
-    },
-    {
-      id: 'hp-laserjet-m236dw',
-      name: 'HP LaserJet MFP M236dw Printer',
-      desc: 'HP LaserJet MFP M236dw Printer...',
-      price: '54,360',
-      rating: 4.5,
-      reviews: 423,
-      image: '/printer-category.png',
-      label: { text: 'BEST DEALS', color: 'bg-[#00aeef]' }
-    },
-    {
-      id: 'dell-22-led-p2217h',
-      name: 'DELL 22" LED P2217H Monitor',
-      desc: 'DELL 22" LED P2217H NEW',
-      price: '25,000',
-      rating: 4,
-      reviews: 816,
-      image: '/monitor-category.png'
-    },
-    {
-      id: 'dell-optiplex-5050mt',
-      name: 'DELL OPTIPLEX 5050MT CI7',
-      desc: 'DELL OPTIPLEX 5050MT CI7, 6TH GEN, 8GB, 256GB',
-      price: '108,500',
-      rating: 5,
-      reviews: 647,
-      image: '/laptop-category.jpg'
-    },
-    {
-      id: 'dell-led-se2222h',
-      name: 'DELL LED SE2222H NEW',
-      desc: 'DELL LED SE2222H NEW',
-      price: '22,000',
-      oldPrice: '30,000',
-      rating: 4.5,
-      reviews: 877,
-      image: '/monitor-category.png',
-      label: { text: '25% OFF', color: 'bg-yellow-400 text-black' }
-    },
-    {
-      id: 'dell-vostro-3020',
-      name: 'DELL VOSTRO 3020 CI3',
-      desc: 'DELL VOSTRO 3020 CI3 13GEN 8GB 256GBSSD',
-      price: '108,000',
-      rating: 5,
-      reviews: 426,
-      image: '/laptop-category.jpg'
-    },
-    {
-      id: 'lenovo-ideapad-slim-3',
-      name: 'Lenovo IdeaPad Slim 3 15',
-      desc: 'Lenovo IdeaPad Slim 3 15 - 13th Gen Core i7 13620H',
-      price: '106,000',
-      rating: 5,
-      reviews: 583,
-      image: '/laptop-category.jpg',
-      label: { text: 'SALE', color: 'bg-green-500' }
-    },
-    {
-      id: 'hp-pavilion-15',
-      name: 'HP Pavilion 15 Laptop',
-      desc: 'HP Pavilion 15 - Intel Core i5, 8GB RAM, 512GB SSD',
-      price: '95,000',
-      rating: 4.5,
-      reviews: 412,
-      image: '/laptop-category.jpg',
-      label: { text: 'NEW', color: 'bg-blue-500' }
-    },
-    {
-      id: 'dell-inspiron-15-3000',
-      name: 'DELL Inspiron 15 3000',
-      desc: 'DELL Inspiron 15 3000 - Intel Celeron, 4GB RAM, 1TB HDD',
-      price: '65,000',
-      rating: 4,
-      reviews: 328,
-      image: '/laptop-category.jpg'
-    },
-    {
-      id: 'asus-rog-strix',
-      name: 'ASUS ROG Strix Gaming Laptop',
-      desc: 'ASUS ROG Strix - Intel i7, 16GB RAM, RTX 3060, 1TB SSD',
-      price: '350,000',
-      rating: 5,
-      reviews: 892,
-      image: '/laptop-category.jpg',
-      label: { text: 'HOT', color: 'bg-red-500' }
-    },
-    {
-      id: 'lenovo-thinkpad-x1',
-      name: 'Lenovo ThinkPad X1 Carbon',
-      desc: 'Lenovo ThinkPad X1 Carbon - Intel i7, 16GB RAM, 512GB SSD',
-      price: '280,000',
-      rating: 5,
-      reviews: 654,
-      image: '/laptop-category.jpg'
-    },
-    {
-      id: 'hp-officejet-pro-9015e',
-      name: 'HP OfficeJet Pro 9015e',
-      desc: 'HP OfficeJet Pro 9015e All-in-One Printer',
-      price: '45,000',
-      rating: 4.5,
-      reviews: 267,
-      image: '/printer-category.png'
-    },
-    {
-      id: 'dell-ultrasharp-u2720q',
-      name: 'DELL UltraSharp U2720Q Monitor',
-      desc: 'DELL UltraSharp U2720Q 27" 4K IPS Monitor',
-      price: '85,000',
-      rating: 5,
-      reviews: 521,
-      image: '/monitor-category.png',
-      label: { text: 'BEST DEALS', color: 'bg-[#00aeef]' }
-    },
-    {
-      id: 'samsung-odyssey-g7',
-      name: 'Samsung Odyssey G7 Monitor',
-      desc: 'Samsung Odyssey G7 32" Curved Gaming Monitor',
-      price: '120,000',
-      rating: 4.5,
-      reviews: 743,
-      image: '/monitor-category.png'
-    },
-    {
-      id: 'macbook-pro-14-m3',
-      name: 'MacBook Pro 14" M3',
-      desc: 'MacBook Pro 14" with M3 Chip, 18GB RAM, 512GB SSD',
-      price: '450,000',
-      rating: 5,
-      reviews: 1024,
-      image: '/laptop-category.jpg',
-      label: { text: 'PREMIUM', color: 'bg-purple-500' }
-    },
-    {
-      id: 'acer-predator-helios-300',
-      name: 'Acer Predator Helios 300',
-      desc: 'Acer Predator Helios 300 - Intel i7, 16GB RAM, RTX 3070',
-      price: '320,000',
-      rating: 5,
-      reviews: 589,
-      image: '/laptop-category.jpg'
-    },
-    {
-      id: 'hp-elitedesk-800-g6',
-      name: 'HP EliteDesk 800 G6',
-      desc: 'HP EliteDesk 800 G6 Desktop - Intel i5, 8GB RAM, 256GB SSD',
-      price: '125,000',
-      rating: 4.5,
-      reviews: 376,
-      image: '/laptop-category.jpg'
-    },
-    {
-      id: 'canon-pixma-ts3520',
-      name: 'Canon PIXMA TS3520 Printer',
-      desc: 'Canon PIXMA TS3520 All-in-One Inkjet Printer',
-      price: '18,000',
-      rating: 4,
-      reviews: 445,
-      image: '/printer-category.png'
-    },
-    {
-      id: 'viewsonic-vx2458-mhd',
-      name: 'ViewSonic VX2458-MHD Monitor',
-      desc: 'ViewSonic VX2458-MHD 24" Full HD Gaming Monitor',
-      price: '42,000',
-      rating: 4.5,
-      reviews: 612,
-      image: '/monitor-category.png',
-      label: { text: '20% OFF', color: 'bg-yellow-400 text-black' }
-    },
-    {
-      id: 'msi-katana-gf76',
-      name: 'MSI Katana GF76 Gaming Laptop',
-      desc: 'MSI Katana GF76 - Intel i7, 16GB RAM, RTX 3050, 1TB SSD',
-      price: '295,000',
-      rating: 5,
-      reviews: 467,
-      image: '/laptop-category.jpg'
-    },
-    {
-      id: 'lg-27ul500-w',
-      name: 'LG 27UL500-W Monitor',
-      desc: 'LG 27UL500-W 27" 4K UHD IPS Monitor',
-      price: '78,000',
-      rating: 4.5,
-      reviews: 534,
-      image: '/monitor-category.png'
-    }
   ];
 
   const renderStars = (rating) => {
@@ -520,65 +361,73 @@ export default function AllProducts() {
 
                 {/* Results Count */}
                 <div className="mt-4 text-sm text-gray-600">
-                  65,867 Results found.
+                  {loadingProducts
+                    ? 'Loading results...'
+                    : `${products.length} ${products.length === 1 ? 'result' : 'results'} found.`}
                 </div>
               </div>
 
             
 
               {/* Product Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pl-4 mb-6">
-                {products.map((product, index) => (
-                  <Link
-                    key={product.id || index}
-                    href={`/product/${product.id || 'macbook-pro'}`}
-                    className="relative bg-white border border-gray-300 rounded-sm overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
-                  >
-                    {product.label && (
-                      <div className={`absolute top-2 left-2 ${product.label.color} text-white text-xs font-bold px-2 py-1 rounded z-10`}>
-                        {product.label.text}
-                      </div>
-                    )}
+              <div className="pl-4 mb-6">
+                {loadingProducts ? (
+                  <div className="py-12 text-sm text-gray-600 text-center">Loading products...</div>
+                ) : fetchError ? (
+                  <div className="py-12 text-sm text-red-600 text-center">{fetchError}</div>
+                ) : products.length === 0 ? (
+                  <div className="py-12 text-sm text-gray-600 text-center">No products available yet.</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {products.map((product) => {
+                      const productId = encodeURIComponent(product.id);
+                      const productDescription = product.description || 'Specifications coming soon.';
+                      return (
+                        <Link
+                          key={product.id}
+                          href={`/product/${productId}`}
+                          className="relative bg-white border border-gray-300 rounded-sm overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
+                        >
+                          {/* Hover icons */}
+                          <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+                              <CiHeart className="text-lg" />
+                            </div>
+                            <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+                              <CiShoppingCart className="text-lg" />
+                            </div>
+                            <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+                              <FaRegEye className="text-lg" />
+                            </div>
+                          </div>
 
-                    {/* Hover icons */}
-                    <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                      <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                        <CiHeart className="text-lg" />
-                      </div>
-                      <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                        <CiShoppingCart className="text-lg" />
-                      </div>
-                      <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                        <FaRegEye className="text-lg" />
-                      </div>
-                    </div>
+                          <div className="w-full h-40 flex items-center justify-center p-4 bg-white">
+                            <Image
+                              src={product.image}
+                              alt={product.name}
+                              width={120}
+                              height={120}
+                              unoptimized
+                              className="object-contain"
+                            />
+                          </div>
 
-                    <div className="w-full h-40 flex items-center justify-center p-4 bg-white">
-                      <Image
-                        src={product.image}
-                        alt={product.name}
-                        width={120}
-                        height={120}
-                        className="object-contain"
-                      />
-                    </div>
-
-                    <div className="p-4 flex flex-col flex-1">
-                      <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
-                        {renderStars(product.rating)}
-                        <span className="text-gray-600 text-xs ml-1">({product.reviews})</span>
-                      </div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
-                      <p className="text-xs text-gray-600 mb-2 line-clamp-2 flex-1">{product.desc}</p>
-                      <div className="flex items-baseline gap-2 mt-auto">
-                        <span className="text-base font-bold text-blue-500">Rs. {product.price}</span>
-                        {product.oldPrice && (
-                          <span className="text-sm text-gray-400 line-through">Rs. {product.oldPrice}</span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                          <div className="p-4 flex flex-col flex-1">
+                            <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
+                              {renderStars(product.rating)}
+                              <span className="text-gray-600 text-xs ml-1">({formatNumber(product.reviews)})</span>
+                            </div>
+                            <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+                            <p className="text-xs text-gray-600 mb-2 line-clamp-2 flex-1">{productDescription}</p>
+                            <div className="flex items-baseline gap-2 mt-auto">
+                              <span className="text-base font-bold text-blue-500">Rs. {formatCurrency(product.price)}</span>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Pagination */}
