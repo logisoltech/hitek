@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { FiCheckCircle, FiAlertTriangle, FiArrowRight } from 'react-icons/fi';
@@ -8,7 +8,7 @@ import Navbar from '../Cx/Layout/Navbar';
 import Footer from '../Cx/Layout/Footer';
 import { openSans } from '../Cx/Font/font';
 
-const OrderConfirmationPage = () => {
+const OrderConfirmationContent = () => {
   const [status, setStatus] = useState('loading'); // loading | success | failure
   const [orderInfo, setOrderInfo] = useState(null);
   const searchParams = useSearchParams();
@@ -145,12 +145,20 @@ const OrderConfirmationPage = () => {
   };
 
   return (
+    <div className="w-full max-w-lg bg-white border border-gray-200 rounded-xs shadow-sm px-8 py-12">
+      {renderContent()}
+    </div>
+  );
+};
+
+const OrderConfirmationPage = () => {
+  return (
     <div className={`min-h-screen flex flex-col bg-white ${openSans.className}`}>
       <Navbar />
       <main className="grow flex items-center justify-center px-4 py-16">
-        <div className="w-full max-w-lg bg-white border border-gray-200 rounded-xs shadow-sm px-8 py-12">
-          {renderContent()}
-        </div>
+        <Suspense fallback={<div className="text-sm text-gray-500">Checking order status...</div>}>
+          <OrderConfirmationContent />
+        </Suspense>
       </main>
       <Footer />
     </div>
