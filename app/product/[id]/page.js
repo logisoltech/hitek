@@ -19,12 +19,17 @@ const ProductPage = () => {
   
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [selectedColor, setSelectedColor] = useState('space-gray');
+  const [selectedMemory, setSelectedMemory] = useState('8GB');
+  const [selectedSize, setSelectedSize] = useState('13-inch');
+  const [selectedStorage, setSelectedStorage] = useState('256GB');
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [addMessage, setAddMessage] = useState('');
   const { addToCart } = useCart();
   const thumbnailScrollRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('description');
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -316,19 +321,80 @@ const ProductPage = () => {
               <span className="text-3xl font-bold text-[#00aeef]">PKR {formatPrice(product.price)}</span>
             </div>
 
-            {/* Key Specifications */}
-            {specList.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 border-y border-gray-200">
-                {specList.map((spec) => (
-                  <div key={spec.label} className="text-sm text-gray-700 flex flex-col gap-1">
-                    <span className="font-medium text-gray-500 uppercase tracking-wide text-xs">
-                      {spec.label}
-                    </span>
-                    <span className="font-semibold text-gray-900">{spec.value}</span>
-                  </div>
-                ))}
+            {/* Row 1: Colors and Memory */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Color
+                </label>
+                <div className="flex gap-2">
+                  {[
+                    { id: 'space-gray', label: 'Space Gray' },
+                    { id: 'silver', label: 'Silver' },
+                  ].map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setSelectedColor(option.id)}
+                      className={`px-4 py-2 text-sm border rounded-sm transition ${
+                        selectedColor === option.id
+                          ? 'border-[#00aeef] text-[#00aeef]'
+                          : 'border-gray-300 text-gray-600 hover:border-[#00aeef]'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Memory
+                </label>
+                <select
+                  value={selectedMemory}
+                  onChange={(e) => setSelectedMemory(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                >
+                  <option value="8GB">8GB Unified Memory</option>
+                  <option value="16GB">16GB Unified Memory</option>
+                  <option value="24GB">24GB Unified Memory</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Row 2: Size and Storage */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Size
+                </label>
+                <select
+                  value={selectedSize}
+                  onChange={(e) => setSelectedSize(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                >
+                  <option value="13-inch">13-inch Retina Display</option>
+                  <option value="14-inch">14-inch Liquid Retina XDR</option>
+                  <option value="16-inch">16-inch Liquid Retina XDR</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Storage
+                </label>
+                <select
+                  value={selectedStorage}
+                  onChange={(e) => setSelectedStorage(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                >
+                  <option value="256GB">256GB SSD</option>
+                  <option value="512GB">512GB SSD</option>
+                  <option value="1TB">1TB SSD</option>
+                  <option value="2TB">2TB SSD</option>
+                </select>
+              </div>
+            </div>
 
             {/* Quantity Selector */}
             <div>
@@ -419,77 +485,137 @@ const ProductPage = () => {
           <div className="border border-gray-200 rounded-sm bg-white">
             {/* Tabs */}
             <div className="flex justify-center border-b border-gray-200">
-              <div className="flex">
-                <button className="px-6 py-3 text-sm font-semibold text-gray-900 border-b-2 border-[#00aeef] transition">
-                  DESCRIPTION
-                </button>
-                <button className="px-6 py-3 text-sm font-semibold text-gray-500 hover:text-gray-900 transition">
-                  ADDITIONAL INFORMATION
-                </button>
-                <button className="px-6 py-3 text-sm font-semibold text-gray-500 hover:text-gray-900 transition">
-                  SPECIFICATION
-                </button>
-                <button className="px-6 py-3 text-sm font-semibold text-gray-500 hover:text-gray-900 transition">
-                  REVIEW
-                </button>
+              <div className="flex flex-wrap">
+                {[
+                  { id: 'description', label: 'Description' },
+                  { id: 'additional', label: 'Additional Information' },
+                  { id: 'specs', label: 'Specification' },
+                  { id: 'reviews', label: 'Review' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-6 py-3 text-sm font-semibold transition ${
+                      activeTab === tab.id
+                        ? 'text-gray-900 border-b-2 border-[#00aeef]'
+                        : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    {tab.label.toUpperCase()}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Description Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
-            {/* Left Column - Description */}
-            <div className="lg:col-span-6 pr-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Description</h3>
-              <div className="text-sm text-gray-600 space-y-3">
-                {product.description ? (
-                  product.description.split('\n').map((paragraph, index) => (
-                    <p key={index}>{paragraph}</p>
-                  ))
-                ) : (
-                  <p>
-                    Detailed description for this product will be available soon. Please review the specifications for more
-                    information about performance and features.
-                  </p>
-                )}
-              </div>
-            </div>
+            <div className="p-6">
+              {activeTab === 'description' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <div className="lg:col-span-6 pr-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Description</h3>
+                    <div className="text-sm text-gray-600 space-y-3">
+                      {product.description ? (
+                        product.description.split('\n').map((paragraph, index) => (
+                          <p key={index}>{paragraph}</p>
+                        ))
+                      ) : (
+                        <p>
+                          Detailed description for this product will be available soon.
+                          Please review the specifications for more information about
+                          performance and features.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="lg:col-span-3 px-3">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Feature</h3>
+                    <div className="space-y-4 text-sm text-gray-700">
+                      <div className="flex items-center gap-3">
+                        <FaGift className="text-2xl text-[#00aeef]" />
+                        <span>Free 1 Year Warranty</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <FaTruck className="text-2xl text-[#00aeef]" />
+                        <span>Free Shipping &amp; Fast Delivery</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <MdAttachMoney className="text-2xl text-[#00aeef]" />
+                        <span>100% Money-back guarantee</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <FaHeadset className="text-2xl text-[#00aeef]" />
+                        <span>24/7 Customer support</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <CiCreditCard1 className="text-2xl text-[#00aeef]" />
+                        <span>Secure payment method</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="lg:col-span-3 border-l border-gray-200 pl-8">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">
+                      Shipping Information
+                    </h3>
+                    <div className="text-sm text-gray-600 space-y-2">
+                      <p>Courier: 2-4 days, free shipping</p>
+                      <p>Local Shipping: up to one week</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-            {/* Middle Column - Feature */}
-            <div className="lg:col-span-3 px-3">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Feature</h3>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <FaGift className="text-2xl text-[#00aeef]" />
-                  <span className="text-sm text-gray-700">Free 1 Year Warranty</span>
+              {activeTab === 'additional' && (
+                <div className="space-y-4 text-sm text-gray-600">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Additional Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="font-medium text-gray-900">Brand</p>
+                      <p>{productBrand}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Model</p>
+                      <p>{productModel}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Availability</p>
+                      <p>{availability}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Category</p>
+                      <p>{categoryLabel}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <FaTruck className="text-2xl text-[#00aeef]" />
-                  <span className="text-sm text-gray-700">Free Shipping & Fasted Delivery</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <MdAttachMoney className="text-2xl text-[#00aeef]" />
-                  <span className="text-sm text-gray-700">100% Money-back guarantee</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <FaHeadset className="text-2xl text-[#00aeef]" />
-                  <span className="text-sm text-gray-700">24/7 Customer support</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CiCreditCard1 className="text-2xl text-[#00aeef]" />
-                  <span className="text-sm text-gray-700">Secure payment method</span>
-                </div>
-              </div>
-            </div>
+              )}
 
-            {/* Right Column - Shipping Information */}
-            <div className="lg:col-span-2 pl-8 border-l border-gray-200 ">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Shipping Information</h3>
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>Courier: 2-4 days, free shipping</p>
-                <p>Local Shipping: up to one week</p>
-              </div>
+              {activeTab === 'specs' && (
+                <div className="space-y-4 text-sm text-gray-600">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Specification
+                  </h3>
+                  {specList.length === 0 ? (
+                    <p>Specifications will be available soon.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {specList.map((spec) => (
+                        <div key={spec.label}>
+                          <p className="font-medium text-gray-900">{spec.label}</p>
+                          <p>{spec.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'reviews' && (
+                <div className="space-y-4 text-sm text-gray-600">
+                  <h3 className="text-lg font-semibold text-gray-900">Reviews</h3>
+                  <p>Reviews will be available soon.</p>
+                </div>
+              )}
             </div>
-          </div>
           </div>
         </div>
 

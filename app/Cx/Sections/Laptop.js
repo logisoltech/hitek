@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { FaChevronLeft, FaChevronRight, FaRegEye } from 'react-icons/fa';
 import { CiShoppingCart, CiHeart } from 'react-icons/ci';
@@ -11,6 +11,9 @@ const Laptop = () => {
   const scrollContainerRef = useRef(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const scrollLeft = () => {
     if (scrollContainerRef.current) {
@@ -24,59 +27,49 @@ const Laptop = () => {
     }
   };
 
-  const products = [
-    {
-      name: 'ASUS Zenbook 14 OLED is a touch screen laptop...',
-      price: '400,000',
-      rating: 5,
-      reviews: 738,
-      image: '/laptop-category.jpg',
-      label: { text: 'HOT', color: 'bg-red-500' }
-    },
-    {
-      name: 'HP Laptop 15-fd0232nia, FreeDOS 3.0, 15.6"',
-      price: '112,300',
-      rating: 5,
-      reviews: 536,
-      image: '/laptop-category.jpg'
-    },
-    {
-      name: 'Lenovo IdeaPad Slim 3 15 - 13th Gen Core i7 13620H',
-      price: '106,000',
-      rating: 5,
-      reviews: 583,
-      image: '/laptop-category.jpg',
-      label: { text: 'SALE', color: 'bg-green-500' }
-    },
-    {
-      name: 'HP Laptop 15-fd0232nia, FreeDOS 3.0, 15.6"',
-      price: '112,300',
-      rating: 5,
-      reviews: 536,
-      image: '/laptop-category.jpg'
-    },
-    {
-      name: 'HP Laptop 15-fd0232nia, FreeDOS 3.0, 15.6"',
-      price: '112,300',
-      rating: 5,
-      reviews: 536,
-      image: '/laptop-category.jpg'
-    },
-    {
-      name: 'ASUS Zenbook 14 OLED is a touch screen laptop...',
-      price: '400,000',
-      rating: 5,
-      reviews: 738,
-      image: '/laptop-category.jpg'
-    },
-    {
-      name: 'Lenovo IdeaPad Slim 3 15 - 13th Gen Core i7 13620H',
-      price: '106,000',
-      rating: 5,
-      reviews: 583,
-      image: '/laptop-category.jpg'
+  const parseNumeric = (value, fallback = 0) => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === 'number') return Number.isNaN(value) ? fallback : value;
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/[^\d.-]/g, '');
+      const parsed = Number(cleaned);
+      return Number.isNaN(parsed) ? fallback : parsed;
     }
-  ];
+    return fallback;
+  };
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await fetch('http://localhost:3001/api/laptops');
+        if (!response.ok) {
+          throw new Error('Failed to load laptops');
+        }
+        const data = await response.json();
+        const normalized = (Array.isArray(data) ? data : []).map((item) => ({
+          ...item,
+          price: parseNumeric(item.price, 0),
+          rating: parseNumeric(item.rating, 4.5),
+          reviews: parseNumeric(item.reviews, 120),
+          description: item.description || item.title || item.name,
+          image: item.image || '/laptop-category.jpg',
+        }));
+        setProducts(normalized);
+      } catch (err) {
+        console.error('Laptops fetch error:', err);
+        setError(err.message || 'Failed to load laptops.');
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  const displayProducts = useMemo(() => products.slice(0, 12), [products]);
 
   const renderStars = (rating) => {
     const stars = [];
@@ -128,9 +121,22 @@ const Laptop = () => {
             className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {products.map((product, index) => (
+            {loading ? (
+              <div className="w-full text-sm text-gray-500 p-8 text-center">
+                Loading laptops...
+              </div>
+            ) : error ? (
+              <div className="w-full text-sm text-red-500 p-8 text-center">
+                {error}
+              </div>
+            ) : displayProducts.length === 0 ? (
+              <div className="w-full text-sm text-gray-500 p-8 text-center">
+                No laptops available right now.
+              </div>
+            ) : (
+              displayProducts.map((product) => (
               <div
-                key={index}
+                key={product.id}
                 onClick={() => handleProductClick(product)}
                 className="relative bg-white border border-gray-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col shrink-0 w-[234px] h-[320px]"
               >
@@ -158,7 +164,7 @@ const Laptop = () => {
 
                 <div className="w-full h-40 flex items-center justify-center p-4 bg-white">
                   <Image
-                    src={product.image}
+                    src="/laptop-category.jpg"
                     alt={product.name}
                     width={120}
                     height={120}
@@ -168,16 +174,26 @@ const Laptop = () => {
 
                 <div className="p-4 flex flex-col flex-1">
                   <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
-                    {renderStars(product.rating)}
-                    <span className="text-gray-600 text-xs ml-1">({product.reviews})</span>
+                      {renderStars(product.rating)}
+                      <span className="text-gray-600 text-xs ml-1">
+                        ({Number(product.reviews || 0).toLocaleString('en-PK')})
+                      </span>
                   </div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2">{product.name}</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+                  {product.description && (
+                    <p className="text-xs text-gray-500 line-clamp-2 mb-2">
+                      {product.description}
+                    </p>
+                  )}
                   <div className="flex items-baseline gap-2 mt-auto">
-                    <span className="text-base font-bold text-gray-900">Rs. {product.price}</span>
+                    <span className="text-base font-bold text-gray-900">
+                      PKR {Number(product.price || 0).toLocaleString('en-PK')}
+                    </span>
                   </div>
                 </div>
               </div>
-            ))}
+            ))
+            )}
           </div>
 
           {/* Right Arrow Button */}
