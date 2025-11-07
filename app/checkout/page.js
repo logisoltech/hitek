@@ -8,6 +8,7 @@ import { FiArrowRight, FiShield } from 'react-icons/fi';
 import Navbar from '../Cx/Layout/Navbar';
 import Footer from '../Cx/Layout/Footer';
 import { openSans } from '../Cx/Font/font';
+import { useCart } from '../Cx/Providers/CartProvider';
 
 const formatCurrency = (value) => {
   const numeric = Number(value) || 0;
@@ -49,9 +50,9 @@ const paymentMethods = [
 
 const CheckoutPage = () => {
   const router = useRouter();
-  const [cartItems, setCartItems] = useState([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [productsError, setProductsError] = useState('');
+  const { cartItems, cartSubtotal, clearCart } = useCart();
+  const [userLoading, setUserLoading] = useState(true);
+  const [userError, setUserError] = useState('');
   const [billingInfo, setBillingInfo] = useState({
     firstName: '',
     lastName: '',
@@ -74,58 +75,57 @@ const CheckoutPage = () => {
   });
   const [orderNotes, setOrderNotes] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [orderPlacing, setOrderPlacing] = useState(false);
+  const [orderPlaced, setOrderPlaced] = useState(false);
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      setProductsLoading(true);
-      setProductsError('');
-
+    const loadUser = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/laptops');
+        if (typeof window === 'undefined') return;
+        const stored = window.localStorage.getItem('user');
+        if (!stored) {
+          setUserLoading(false);
+          return;
+        }
+
+        const parsed = JSON.parse(stored);
+        if (!parsed?.id) {
+          setUserLoading(false);
+          return;
+        }
+
+        const response = await fetch(`http://localhost:3001/api/users/${parsed.id}`);
         if (!response.ok) {
-          throw new Error('Failed to load products. Please try again.');
+          throw new Error('Failed to load billing information.');
         }
 
         const data = await response.json();
-        const normalizedItems = (Array.isArray(data) ? data : []).map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: Number(item.price) || 0,
-          quantity: 1,
-          image: item.image || '',
-          brand: item.brand || '',
-          model: item.model || '',
+        setBillingInfo((prev) => ({
+          ...prev,
+          firstName: data.first_name || prev.firstName,
+          lastName: data.last_name || prev.lastName,
+          company: data.company || prev.company,
+          address: data.address || data.shipment_address || prev.address,
+          country: data.country || prev.country || 'PK',
+          region: data.province || prev.region,
+          city: data.city || prev.city,
+          zipCode: data.zip_code || prev.zipCode,
+          email: data.email || prev.email,
+          phone: data.phone || prev.phone,
         }));
-
-        if (normalizedItems.length === 0) {
-          setProductsError('No products available yet.');
-        }
-
-        setCartItems(normalizedItems);
       } catch (error) {
-        console.error('Error fetching products for checkout:', error);
-        setProductsError(error.message || 'Failed to load products.');
-        setCartItems([]);
+        console.error('Checkout user fetch error:', error);
+        setUserError(error.message || 'Failed to load saved billing information.');
       } finally {
-        setProductsLoading(false);
+        setUserLoading(false);
       }
     };
 
-    fetchProducts();
+    loadUser();
   }, []);
 
-  const { subTotal, taxAmount, total } = useMemo(() => {
-    const subTotalValue = cartItems.reduce(
-      (sum, item) => sum + (Number(item.price) || 0) * (item.quantity || 0),
-      0,
-    );
-    const taxValue = Math.round(subTotalValue * 0.02);
-    return {
-      subTotal: subTotalValue,
-      taxAmount: taxValue,
-      total: subTotalValue + taxValue,
-    };
-  }, [cartItems]);
+  const taxAmount = useMemo(() => Math.round(cartSubtotal * 0.02), [cartSubtotal]);
+  const total = useMemo(() => cartSubtotal + taxAmount, [cartSubtotal, taxAmount]);
 
   const handleBillingChange = (field) => (event) => {
     setBillingInfo((prev) => ({ ...prev, [field]: event.target.value }));
@@ -137,13 +137,8 @@ const CheckoutPage = () => {
     setStatusMessage('');
   };
 
-  const handlePlaceOrder = (event) => {
+  const handlePlaceOrder = async (event) => {
     event.preventDefault();
-
-    if (productsLoading) {
-      setStatusMessage('Please wait while we load your products.');
-      return;
-    }
 
     if (cartItems.length === 0) {
       setStatusMessage('Your cart is empty. Add a product before placing the order.');
@@ -155,16 +150,90 @@ const CheckoutPage = () => {
       return;
     }
 
-    if (paymentMethod === 'card' && (!cardInfo.name || !cardInfo.number || !cardInfo.expiry || !cardInfo.cvc)) {
+    if (
+      paymentMethod === 'card' &&
+      (!cardInfo.name || !cardInfo.number || !cardInfo.expiry || !cardInfo.cvc)
+    ) {
       setStatusMessage('Please provide complete card details.');
       return;
     }
 
-    setStatusMessage('Order placed successfully! Redirecting to confirmation page...');
+    setOrderPlacing(true);
+    setStatusMessage('');
 
-    setTimeout(() => {
-      router.push('/order-confirmation');
-    }, 1500);
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      if (!storedUser?.id) {
+        setStatusMessage('Please sign in before placing an order.');
+        setOrderPlacing(false);
+        return;
+      }
+
+      const response = await fetch('http://localhost:3001/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: storedUser.id,
+          status: paymentMethod === 'cod' ? 'pending' : 'in_progress',
+          totals: {
+            subtotal: cartSubtotal,
+            tax: taxAmount,
+            shipping: 0,
+            total,
+          },
+          shippingAddress: [
+            billingInfo.address,
+            billingInfo.city,
+            billingInfo.region,
+            billingInfo.country,
+          ]
+            .filter(Boolean)
+            .join(', '),
+          billingAddress: [
+            billingInfo.address,
+            billingInfo.city,
+            billingInfo.region,
+            billingInfo.country,
+          ]
+            .filter(Boolean)
+            .join(', '),
+          paymentMethod,
+          orderNotes,
+          items: cartItems.map((item) => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            metadata: { image: item.image },
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'Failed to place order. Please try again.');
+      }
+
+      const result = await response.json();
+      const orderId = result?.order?.id;
+      if (typeof window !== 'undefined' && orderId) {
+        try {
+          window.localStorage.setItem('latestOrderId', orderId.toString());
+        } catch (storageError) {
+          console.error('Failed to store order confirmation:', storageError);
+        }
+      }
+
+      clearCart();
+      setOrderPlaced(true);
+      setStatusMessage('Order placed successfully! Redirecting...');
+      router.push(orderId ? `/order-confirmation?orderId=${orderId}` : '/order-confirmation');
+    } catch (error) {
+      console.error('Place order error:', error);
+      setStatusMessage(error.message || 'Failed to place order.');
+    } finally {
+      setOrderPlacing(false);
+    }
   };
 
   return (
@@ -203,6 +272,11 @@ const CheckoutPage = () => {
                 {statusMessage && (
                   <div className="mb-6 rounded-xs border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                     {statusMessage}
+                  </div>
+                )}
+                {!statusMessage && userError && (
+                  <div className="mb-6 rounded-xs border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {userError}
                   </div>
                 )}
 
@@ -495,17 +569,13 @@ const CheckoutPage = () => {
                 <p className="text-xs text-gray-500">Review your order details before placing it.</p>
               </div>
 
-              {productsLoading ? (
-                <div className="px-6 py-8 text-sm text-gray-600 text-center">
-                  Loading products...
+              {orderPlaced ? (
+                <div className="px-6 py-8 text-sm text-green-600 text-center">
+                  Order confirmed! Redirecting you shortly...
                 </div>
               ) : cartItems.length === 0 ? (
-                <div
-                  className={`px-6 py-8 text-sm text-center ${
-                    productsError ? 'text-red-600' : 'text-gray-600'
-                  }`}
-                >
-                  {productsError || 'No products in your cart.'}
+                <div className="px-6 py-8 text-sm text-center text-gray-600">
+                  No products in your cart.
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
@@ -542,7 +612,7 @@ const CheckoutPage = () => {
               <div className="px-6 py-5 space-y-3 border-t border-gray-100">
                 <div className="flex items-center justify-between text-sm text-gray-600">
                   <span className="font-medium text-gray-700">Sub-total</span>
-                  <span>{formatCurrency(subTotal)}</span>
+                  <span>{formatCurrency(cartSubtotal)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm text-gray-600">
                   <span className="font-medium text-gray-700">Shipping</span>
@@ -565,10 +635,10 @@ const CheckoutPage = () => {
               <div className="px-6 py-5 border-t border-gray-100">
                 <button
                   type="submit"
-                  disabled={productsLoading || cartItems.length === 0}
+                  disabled={cartItems.length === 0 || orderPlacing || orderPlaced}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xs bg-[#00aeef] px-5 py-3 text-sm  text-white hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed transition"
                 >
-                  PLACE ORDER <FiArrowRight className="text-base" />
+                  {orderPlacing ? 'PLACING ORDER...' : 'PLACE ORDER'} <FiArrowRight className="text-base" />
                 </button>
               </div>
             </aside>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FiArrowRight } from 'react-icons/fi';
@@ -45,6 +45,48 @@ const Navbar = () => {
   const [isLaptopsHovered, setIsLaptopsHovered] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState('HP');
   const { cartCount } = useCart();
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = window.localStorage.getItem('user');
+      if (!stored) {
+        setCurrentUser(null);
+        return;
+      }
+      const parsed = JSON.parse(stored);
+      setCurrentUser(parsed);
+    } catch (error) {
+      console.error('Failed to read user from storage:', error);
+      setCurrentUser(null);
+    }
+  }, []);
+
+  const userInitials = useMemo(() => {
+    if (!currentUser) return null;
+    const nameParts = [currentUser.first_name, currentUser.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    if (!nameParts) {
+      return (currentUser.email || 'U').charAt(0).toUpperCase();
+    }
+    return nameParts
+      .split(' ')
+      .map((part) => part.charAt(0))
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  }, [currentUser]);
+
+  const handleLogout = () => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem('user');
+    window.localStorage.removeItem('session');
+    setCurrentUser(null);
+    window.location.href = '/';
+  };
 
   return (
     <nav className="w-full">
@@ -142,18 +184,43 @@ const Navbar = () => {
               onMouseEnter={() => setIsProfileHovered(true)}
               onMouseLeave={() => setIsProfileHovered(false)}
             >
-              <CiUser className="text-2xl cursor-pointer hover:text-gray-300 transition" />
+              {currentUser ? (
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-white/20 transition">
+                  {userInitials}
+                </div>
+              ) : (
+                <CiUser className="text-2xl cursor-pointer hover:text-gray-300 transition" />
+              )}
               {isProfileHovered && (
                 <>
-                  {/* Invisible bridge to maintain hover across the gap */}
                   <div 
                     className="absolute top-full right-0 w-full h-2 pointer-events-auto z-40"
                     onMouseEnter={() => setIsProfileHovered(true)}
                   />
-                  <LoginPopup 
-                    isOpen={isProfileHovered} 
-                    onClose={() => setIsProfileHovered(false)} 
-                  />
+                  {currentUser ? (
+                    <div
+                      className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg py-2 text-sm text-gray-700"
+                    >
+                      <Link
+                        href="/profile"
+                        className="block px-4 py-2 hover:bg-gray-100"
+                        onClick={() => setIsProfileHovered(false)}
+                      >
+                        Profile
+                      </Link>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  ) : (
+                    <LoginPopup 
+                      isOpen={isProfileHovered} 
+                      onClose={() => setIsProfileHovered(false)} 
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -174,7 +241,7 @@ const Navbar = () => {
           <div className="flex flex-col lg:flex-row items-center justify-between lg:flex-nowrap">
             {/* Desktop Navigation */}
             <div className="hidden lg:flex items-center shrink-0">
-              <a href="#" className="flex items-center gap-2 px-4 py-4 bg-transparent hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+              <a href="/" className="flex items-center gap-2 px-4 py-4 bg-transparent hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
                 <CiHome className="text-2xl shrink-0" />
                 <span className="text-sm font-medium">Home</span>
               </a>
@@ -462,7 +529,7 @@ const Navbar = () => {
             {/* Mobile Navigation */}
             <div className={`lg:hidden w-full ${isMobileMenuOpen ? 'block' : 'hidden'}`}>
               <div className="flex flex-col">
-                <a href="#" className="flex items-center gap-2 px-4 py-3 bg-[#00688f] border-b border-[#00aeef]">
+                <a href="/" className="flex items-center gap-2 px-4 py-3 bg-[#00688f] border-b border-[#00aeef]">
                   <CiHome className="text-xl" />
                   <span className="text-sm font-medium">Home</span>
                 </a>

@@ -20,7 +20,17 @@ const normalizeStatus = (status) => {
   return status.toString().toLowerCase();
 };
 
+const isPendingStatus = (status) => {
+  const normalized = normalizeStatus(status);
+  return normalized === 'pending' || normalized === 'in_progress';
+};
+
 const updateUserTotals = async (userId, delta) => {
+  const toNumber = (value) => {
+    const num = Number(value);
+    return Number.isNaN(num) ? 0 : num;
+  };
+
   const { data: userData, error: userError } = await supabase
     .from('users')
     .select('totalorders, pending, completed')
@@ -32,10 +42,16 @@ const updateUserTotals = async (userId, delta) => {
     return;
   }
 
+  const currentTotals = {
+    totalorders: toNumber(userData.totalorders),
+    pending: toNumber(userData.pending),
+    completed: toNumber(userData.completed),
+  };
+
   const totalsUpdate = {
-    totalorders: Math.max(0, (userData.totalorders || 0) + (delta.totalorders || 0)),
-    pending: Math.max(0, (userData.pending || 0) + (delta.pending || 0)),
-    completed: Math.max(0, (userData.completed || 0) + (delta.completed || 0)),
+    totalorders: Math.max(0, currentTotals.totalorders + (delta.totalorders || 0)),
+    pending: Math.max(0, currentTotals.pending + (delta.pending || 0)),
+    completed: Math.max(0, currentTotals.completed + (delta.completed || 0)),
   };
 
   const { error: updateError } = await supabase
@@ -98,7 +114,7 @@ router.post('/', async (req, res) => {
 
     const totalsDelta = {
       totalorders: 1,
-      pending: normalizedStatus === 'completed' ? 0 : 1,
+      pending: isPendingStatus(normalizedStatus) ? 1 : 0,
       completed: normalizedStatus === 'completed' ? 1 : 0,
     };
 
@@ -135,6 +151,29 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+      throw error;
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('Fetch order by id error:', error);
+    res.status(500).json({ error: error.message || 'Failed to load order' });
+  }
+});
+
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -167,10 +206,11 @@ router.patch('/:id', async (req, res) => {
       const previousStatus = normalizeStatus(existingOrder.status);
       const delta = {
         totalorders: 0,
-        pending:
-          (previousStatus === 'completed' ? 0 : -1) + (normalizedStatus === 'completed' ? 0 : 1),
+        pending: (isPendingStatus(normalizeStatus(existingOrder.status)) ? -1 : 0) +
+          (isPendingStatus(normalizedStatus) ? 1 : 0),
         completed:
-          (previousStatus === 'completed' ? -1 : 0) + (normalizedStatus === 'completed' ? 1 : 0),
+          (normalizeStatus(existingOrder.status) === 'completed' ? -1 : 0) +
+          (normalizedStatus === 'completed' ? 1 : 0),
       };
 
       updateUserTotals(existingOrder.user_id, delta).catch((err) =>
