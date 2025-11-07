@@ -600,7 +600,7 @@ const ProductPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {specList.map((spec) => (
                         <div key={spec.label}>
-                          <p className="font-medium text-gray-900">{spec.label}</p>
+                          <p className="font-bold text-gray-900">{spec.label}</p>
                           <p>{spec.value}</p>
                         </div>
                       ))}
