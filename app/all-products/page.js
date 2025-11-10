@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import Navbar from '../Cx/Layout/Navbar';
@@ -25,47 +25,139 @@ export default function AllProducts() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [fetchError, setFetchError] = useState('');
 
+  const parseNumeric = (value, fallback = 0) => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === 'number' && !Number.isNaN(value)) return value;
+    const cleaned = value.toString().replace(/[^\d.-]/g, '');
+    const num = Number(cleaned);
+    return Number.isNaN(num) ? fallback : num;
+  };
+
+  const extractImageArray = (item) => {
+    if (!item) return [];
+    const candidates = [
+      item.imageUrls,
+      item.image_urls,
+      item.images,
+      item.imageurls,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate
+          .map((url) => (typeof url === 'string' ? url.trim() : ''))
+          .filter((url) => url);
+      }
+    }
+    if (typeof item.image === 'string' && item.image.trim()) {
+      return [item.image.trim()];
+    }
+    return [];
+  };
+
+  const normalizeProduct = (item, type) => {
+    if (!item) return null;
+    const placeholder = type === 'printer' ? '/printer-category.png' : '/laptop-category.jpg';
+    const rawImages = extractImageArray(item);
+    const primaryImage = rawImages[0] || item.image || placeholder;
+    const imageArray = rawImages.length ? rawImages : [primaryImage];
+    const hasId = item.id !== null && item.id !== undefined;
+    const rawId = hasId ? item.id.toString() : '';
+    const computedName = (item.name ||
+      [item.brand, item.series, item.model].filter(Boolean).join(' ').trim() ||
+      (type === 'printer' ? 'Printer' : 'Laptop')).trim();
+    const rawDescription =
+      typeof item.description === 'string' ? item.description.trim() : '';
+    const computedDescription =
+      rawDescription ||
+      (type === 'printer'
+        ? [item.resolution, item.copyfeature, item.scanfeature, item.duplex]
+            .filter(Boolean)
+            .join(' • ')
+        : item.processor || item.graphics || '') ||
+      computedName;
+    const parsedPrice = parseNumeric(item.price);
+    const hasPrice = Number.isFinite(parsedPrice) && parsedPrice > 0;
+
+    return {
+      ...item,
+      id: rawId,
+      sourceId: item.id,
+      type,
+      category: type === 'printer' ? 'Printers' : 'Laptops',
+      cartId: hasId ? `${type}-${rawId}` : undefined,
+      price: hasPrice ? parsedPrice : 0,
+      hasPrice,
+      rating: parseNumeric(item.rating, 4.5),
+      reviews: parseNumeric(item.reviews, 0),
+      name: computedName,
+      description: computedDescription,
+      image: primaryImage,
+      imageUrls: imageArray,
+      image_urls: imageArray,
+      images: imageArray,
+    };
+  };
+
   useEffect(() => {
+    const fetchCategory = async (url, type) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to load ${type} products`);
+        }
+        const data = await response.json();
+        const items = Array.isArray(data) ? data : [];
+        const normalized = items
+          .map((item) => normalizeProduct(item, type))
+          .filter(Boolean);
+        return { data: normalized, error: null };
+      } catch (error) {
+        console.error(`${type} products fetch error:`, error);
+        return { data: [], error: error.message || `Failed to load ${type} products` };
+      }
+    };
+
     const fetchProducts = async () => {
       setLoadingProducts(true);
       setFetchError('');
 
-      try {
-        const response = await fetch('http://localhost:3001/api/laptops');
-        if (!response.ok) {
-          throw new Error('Failed to load products. Please try again.');
-        }
+      const [laptopsResult, printersResult] = await Promise.all([
+        fetchCategory('http://localhost:3001/api/laptops', 'laptop'),
+        fetchCategory('http://localhost:3001/api/printers', 'printer'),
+      ]);
 
-        const data = await response.json();
-        const parseNumeric = (value, fallback = 0) => {
-          if (value === null || value === undefined) return fallback;
-          if (typeof value === 'number') return value;
-          const cleaned = value.toString().replace(/[^\d.-]/g, '');
-          const num = Number(cleaned);
-          return Number.isNaN(num) ? fallback : num;
-        };
+      const combined = [...laptopsResult.data, ...printersResult.data];
+      setProducts(combined);
 
-        const normalized = (Array.isArray(data) ? data : []).map((item) => ({
-          ...item,
-          price: parseNumeric(item.price),
-          rating: parseNumeric(item.rating, 5),
-          reviews: parseNumeric(item.reviews, 120),
-          image: item.image || '/laptop-category.jpg',
-          description: item.description || '',
-        }));
-
-        setProducts(normalized);
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        setFetchError(error.message || 'Failed to load products.');
-        setProducts([]);
-      } finally {
-        setLoadingProducts(false);
+      if (laptopsResult.error && printersResult.error) {
+        setFetchError('Failed to load products. Please try again.');
+      } else if (laptopsResult.error || printersResult.error) {
+        setFetchError('Some product categories failed to load.');
       }
+
+      setLoadingProducts(false);
     };
 
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    setActiveFilters((prev) => {
+      const withoutCategories = prev.filter((filter) => filter !== 'Laptops' && filter !== 'Printers');
+      return [selectedCategory, ...withoutCategories];
+    });
+  }, [selectedCategory]);
+
+  const filteredProducts = useMemo(() => {
+    if (!products.length) return [];
+    if (selectedCategory === 'Laptops') {
+      return products.filter((product) => product.category === 'Laptops');
+    }
+    if (selectedCategory === 'Printers') {
+      return products.filter((product) => product.category === 'Printers');
+    }
+    return [];
+  }, [products, selectedCategory]);
 
   const formatCurrency = (value) =>
     (Number(value) || 0).toLocaleString('en-PK');
@@ -122,6 +214,135 @@ export default function AllProducts() {
 
   const removeFilter = (filter) => {
     setActiveFilters(activeFilters.filter(f => f !== filter));
+  };
+
+  const renderProductImage = (src, alt, className, size = { width: 160, height: 160 }) => {
+    if (src?.startsWith('http')) {
+      return (
+        <img
+          src={src}
+          alt={alt}
+          className={className}
+          style={{ width: size.width, height: size.height }}
+        />
+      );
+    }
+    return (
+      <Image
+        src={src || '/laptop-category.jpg'}
+        alt={alt}
+        width={size.width}
+        height={size.height}
+        className={className}
+      />
+    );
+  };
+
+  const ProductCard = ({ product }) => {
+    const productType = (product.type || 'laptop').toLowerCase();
+    const productId = product.id ? encodeURIComponent(product.id) : '';
+    const productHref = productId ? `/product/${productId}?type=${encodeURIComponent(productType)}` : '#';
+    const productDescription = product.description || 'Specifications coming soon.';
+    const hasPrice = product.hasPrice || (Number.isFinite(product.price) && product.price > 0);
+    const images = Array.isArray(product.imageUrls) && product.imageUrls.length
+      ? product.imageUrls
+      : [product.image || (productType === 'printer' ? '/printer-category.png' : '/laptop-category.jpg')];
+    const [activeImage, setActiveImage] = useState(0);
+
+    const handlePrev = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveImage((prev) => (prev - 1 + images.length) % images.length);
+    };
+
+    const handleNext = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveImage((prev) => (prev + 1) % images.length);
+    };
+
+    const handleDotSelect = (event, index) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveImage(index);
+    };
+
+    return (
+      <Link
+        href={productHref}
+        className="relative bg-white border border-gray-300 rounded-sm overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
+      >
+        <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+            <CiHeart className="text-lg" />
+          </div>
+          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+            <CiShoppingCart className="text-lg" />
+          </div>
+          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+            <FaRegEye className="text-lg" />
+          </div>
+        </div>
+
+        <div className="relative w-full h-40 flex items-center justify-center p-4 bg-white">
+          {renderProductImage(
+            images[activeImage],
+            `${product.name} preview ${activeImage + 1}`,
+            'object-contain transition-opacity duration-200 max-h-full max-w-full',
+            { width: 160, height: 160 },
+          )}
+
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 border border-gray-200 text-gray-600 rounded-full p-1 hover:bg-white"
+                aria-label="Previous product image"
+              >
+                <FaChevronLeft className="text-xs" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 border border-gray-200 text-gray-600 rounded-full p-1 hover:bg-white"
+                aria-label="Next product image"
+              >
+                <FaChevronRight className="text-xs" />
+              </button>
+
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white/80 rounded-full px-2 py-1">
+                {images.map((_, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={(event) => handleDotSelect(event, index)}
+                    className={`w-2 h-2 rounded-full transition ${
+                      index === activeImage ? 'bg-[#00aeef]' : 'bg-gray-300 hover:bg-gray-400'
+                    }`}
+                    aria-label={`Show image ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="p-4 flex flex-col flex-1">
+          <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
+            {renderStars(product.rating)}
+            <span className="text-gray-600 text-xs ml-1">({formatNumber(product.reviews)})</span>
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+          <p className="text-xs text-gray-600 mb-2 line-clamp-2 flex-1">{productDescription}</p>
+          <div className="flex items-baseline gap-2 mt-auto">
+            <span className="text-base font-bold text-blue-500">
+              {hasPrice ? `Rs. ${formatCurrency(product.price)}` : 'Price on request'}
+            </span>
+          </div>
+        </div>
+      </Link>
+    );
   };
 
   return (
@@ -363,7 +584,7 @@ export default function AllProducts() {
                 <div className="mt-4 text-sm text-gray-600">
                   {loadingProducts
                     ? 'Loading results...'
-                    : `${products.length} ${products.length === 1 ? 'result' : 'results'} found.`}
+                    : `${filteredProducts.length} ${filteredProducts.length === 1 ? 'result' : 'results'} found.`}
                 </div>
               </div>
 
@@ -375,57 +596,16 @@ export default function AllProducts() {
                   <div className="py-12 text-sm text-gray-600 text-center">Loading products...</div>
                 ) : fetchError ? (
                   <div className="py-12 text-sm text-red-600 text-center">{fetchError}</div>
-                ) : products.length === 0 ? (
+                ) : filteredProducts.length === 0 ? (
                   <div className="py-12 text-sm text-gray-600 text-center">No products available yet.</div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {products.map((product) => {
-                      const productId = encodeURIComponent(product.id);
-                      const productDescription = product.description || 'Specifications coming soon.';
-                      return (
-                        <Link
-                          key={product.id}
-                          href={`/product/${productId}`}
-                          className="relative bg-white border border-gray-300 rounded-sm overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
-                        >
-                          {/* Hover icons */}
-                          <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                            <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                              <CiHeart className="text-lg" />
-                            </div>
-                            <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                              <CiShoppingCart className="text-lg" />
-                            </div>
-                            <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                              <FaRegEye className="text-lg" />
-                            </div>
-                          </div>
-
-                          <div className="w-full h-40 flex items-center justify-center p-4 bg-white">
-                            <Image
-                              src={product.image}
-                              alt={product.name}
-                              width={120}
-                              height={120}
-                              unoptimized
-                              className="object-contain"
-                            />
-                          </div>
-
-                          <div className="p-4 flex flex-col flex-1">
-                            <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
-                              {renderStars(product.rating)}
-                              <span className="text-gray-600 text-xs ml-1">({formatNumber(product.reviews)})</span>
-                            </div>
-                            <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
-                            <p className="text-xs text-gray-600 mb-2 line-clamp-2 flex-1">{productDescription}</p>
-                            <div className="flex items-baseline gap-2 mt-auto">
-                              <span className="text-base font-bold text-blue-500">Rs. {formatCurrency(product.price)}</span>
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
+                    {filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.cartId || `${product.type}-${product.id}`}
+                        product={product}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

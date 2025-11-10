@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { FaStar, FaShoppingCart, FaFacebook, FaTwitter, FaChevronLeft, FaChevronRight, FaGift, FaTruck, FaHeadset } from 'react-icons/fa';
 import { CiHeart, CiCreditCard1 } from 'react-icons/ci';
 import { FaCopy, FaPinterest } from 'react-icons/fa6';
@@ -16,6 +16,12 @@ import { useCart } from '../../Cx/Providers/CartProvider';
 const ProductPage = () => {
   const params = useParams();
   const productId = params?.id;
+  const searchParams = useSearchParams();
+  const requestedType = searchParams?.get('type');
+  const initialType =
+    typeof requestedType === 'string' && requestedType.toLowerCase() === 'printer'
+      ? 'printer'
+      : 'laptop';
   
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -31,6 +37,76 @@ const ProductPage = () => {
   const thumbnailScrollRef = useRef(null);
   const [activeTab, setActiveTab] = useState('description');
 
+  const parseNumeric = (value, fallback = 0) => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === 'number' && !Number.isNaN(value)) return value;
+    const cleaned = value.toString().replace(/[^\d.-]/g, '');
+    const num = Number(cleaned);
+    return Number.isNaN(num) ? fallback : num;
+  };
+
+  const extractImageArray = (item, type = 'laptop') => {
+    if (!item) return [];
+    const candidates = [
+      item.imageUrls,
+      item.image_urls,
+      item.images,
+      item.imageurls,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate
+          .map((url) => (typeof url === 'string' ? url.trim() : ''))
+          .filter((url) => url);
+      }
+    }
+    if (typeof item.image === 'string' && item.image.trim()) {
+      return [item.image.trim()];
+    }
+    const placeholder = type === 'printer' ? '/printer-category.png' : '/big-laptop.png';
+    return [placeholder];
+  };
+
+  const resolveProductType = (data, fallback = initialType) => {
+    const rawType =
+      data?.type ||
+      (typeof data?.category === 'string' ? data.category : undefined);
+    if (typeof rawType === 'string') {
+      const normalized = rawType.toLowerCase();
+      if (normalized.includes('printer')) return 'printer';
+      if (normalized.includes('laptop')) return 'laptop';
+    }
+    return fallback;
+  };
+
+  const renderProductImage = (src, alt, className, size, fallback) => {
+    if (src?.startsWith?.('http')) {
+      return (
+        <img
+          src={src}
+          alt={alt}
+          className={className}
+          style={
+            size
+              ? { width: size.width, height: size.height, maxWidth: '100%', maxHeight: '100%' }
+              : { maxWidth: '100%', maxHeight: '100%' }
+          }
+        />
+      );
+    }
+    const width = size?.width || 600;
+    const height = size?.height || 500;
+    return (
+      <Image
+        src={src || fallback}
+        alt={alt}
+        width={width}
+        height={height}
+        className={className}
+      />
+    );
+  };
+
   useEffect(() => {
     const fetchProduct = async () => {
       if (!productId) return;
@@ -38,7 +114,21 @@ const ProductPage = () => {
       setError('');
 
       try {
-        const response = await fetch(`http://localhost:3001/api/laptops/${productId}`);
+        let endpointType = initialType;
+        const buildUrl = (type) =>
+          `http://localhost:3001/api/${type === 'printer' ? 'printers' : 'laptops'}/${productId}`;
+
+        let response = await fetch(buildUrl(endpointType));
+
+        if (response.status === 404) {
+          const fallbackType = endpointType === 'printer' ? 'laptop' : 'printer';
+          const fallbackResponse = await fetch(buildUrl(fallbackType));
+          if (fallbackResponse.ok) {
+            response = fallbackResponse;
+            endpointType = fallbackType;
+          }
+        }
+
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error('Product not found.');
@@ -47,21 +137,53 @@ const ProductPage = () => {
         }
 
         const data = await response.json();
-        const parseNumeric = (value) => {
-          if (value === null || value === undefined) return 0;
-          if (typeof value === 'number') return value;
-          const cleaned = value.toString().replace(/[^\d.-]/g, '');
-          return Number(cleaned) || 0;
-        };
+        const resolvedType = resolveProductType(data, endpointType);
+        const imageArray = extractImageArray(data, resolvedType);
+        const placeholder = resolvedType === 'printer' ? '/printer-category.png' : '/big-laptop.png';
+        const images = imageArray.length ? imageArray : [placeholder];
+        const rawId =
+          data.id !== null && data.id !== undefined && data.id.toString
+            ? data.id.toString()
+            : data.id;
+        const computedName =
+          (data.name ||
+            (resolvedType === 'printer'
+              ? [data.brand, data.series].filter(Boolean).join(' ').trim()
+              : [data.brand, data.model || data.series].filter(Boolean).join(' ').trim())) || '';
+        const finalName = computedName.trim()
+          ? computedName.trim()
+          : resolvedType === 'printer'
+            ? 'Printer'
+            : 'Product';
+        const normalizedDescription =
+          typeof data.description === 'string' ? data.description.trim() : '';
+        const computedDescription =
+          normalizedDescription ||
+          (resolvedType === 'printer'
+            ? [data.resolution, data.copyfeature, data.scanfeature, data.duplex]
+                .filter(Boolean)
+                .join(' • ')
+            : data.processor || data.graphics || '') ||
+          finalName;
 
         const normalized = {
           ...data,
-          id: data.id?.toString?.() ? data.id.toString() : data.id,
-          price: parseNumeric(data.price),
-          rating: parseNumeric(data.rating) || 4.7,
-          reviews: parseNumeric(data.reviews) || 0,
+          id: rawId,
+          type: resolvedType,
+          category: data.category || (resolvedType === 'printer' ? 'Printers' : 'Laptops'),
+          cartId: rawId ? `${resolvedType}-${rawId}` : undefined,
+          name: finalName,
+          description: computedDescription,
+          price: parseNumeric(data.price, 0),
+          hasPrice: parseNumeric(data.price, 0) > 0,
+          rating: parseNumeric(data.rating, 4.7) || 4.7,
+          reviews: parseNumeric(data.reviews, 0),
           brand: data.brand || 'Unknown',
           model: data.model || data.series || `SKU-${data.id}`,
+          image: images[0] || placeholder,
+          imageUrls: images,
+          image_urls: images,
+          images,
         };
         setProduct(normalized);
       } catch (err) {
@@ -74,21 +196,18 @@ const ProductPage = () => {
     };
 
     fetchProduct();
-  }, [productId]);
+  }, [productId, initialType]);
 
   const images = React.useMemo(() => {
-    if (product?.image) {
-      return [product.image, product.image, product.image].filter(Boolean);
+    if (!product) return [];
+    return extractImageArray(product, product.type || initialType);
+  }, [product, initialType]);
+
+  useEffect(() => {
+    if (selectedImage > 0 && selectedImage >= images.length) {
+      setSelectedImage(0);
     }
-    return [
-      '/big-laptop.png',
-      '/big-laptop.png',
-      '/big-laptop.png',
-      '/big-laptop.png',
-      '/big-laptop.png',
-      '/big-laptop.png'
-    ];
-  }, [product?.image]);
+  }, [images.length, selectedImage]);
 
   const renderStars = (rating) => {
     const stars = [];
@@ -165,15 +284,26 @@ const ProductPage = () => {
   const availability = 'In Stock';
   const rating = product.rating || 4.7;
   const reviews = product.reviews || 125;
-  const categoryLabel = product.category || 'Laptops';
+  const categoryLabel =
+    product.category ||
+    (product.type === 'printer' ? 'Printers' : 'Laptops');
+  const isPrinter = (product.type || initialType) === 'printer';
+  const isLaptop = !isPrinter;
   const handleAddToCart = () => {
     if (!product) return;
+    const cartId = product.cartId || (product.type ? `${product.type}-${product.id}` : product.id);
+    const imageSrc =
+      product.image ||
+      (product.type === 'printer' ? '/printer-category.png' : '/laptop-category.jpg');
     addToCart(
       {
-        id: product.id,
+        id: cartId,
+        productId: product.id,
+        type: product.type,
+        category: product.category,
         name: product.name,
         price: product.price,
-        image: product.image || '/laptop-category.jpg',
+        image: imageSrc,
         brand: product.brand,
         model: product.model,
       },
@@ -184,21 +314,40 @@ const ProductPage = () => {
   };
 
 
-  const specList = [
-    { label: 'Processor', value: product.processor },
-    { label: 'Graphics', value: product.graphics },
-    { label: 'Display', value: product.display },
-    { label: 'Memory', value: product.memory },
-    { label: 'Storage', value: product.storage },
-    { label: 'Adapter', value: product.adapter },
-    { label: 'Wi-Fi', value: product.wifi },
-    { label: 'Bluetooth', value: product.bluetooth },
-    { label: 'Camera', value: product.camera },
-    { label: 'Ports', value: product.port },
-    { label: 'Operating System', value: product.os },
-    { label: 'Microphone', value: product.mic },
-    { label: 'Battery', value: product.battery },
-  ].filter((spec) => spec.value);
+  const specList = (
+    (product.type || initialType) === 'printer'
+      ? [
+          { label: 'Brand', value: product.brand },
+          { label: 'Series', value: product.series },
+          { label: 'Memory', value: product.memory },
+          { label: 'Paper Input', value: product.paperinput },
+          { label: 'Paper Output', value: product.paperoutput },
+          { label: 'Paper Types', value: product.papertypes },
+          { label: 'Dimensions', value: product.dimensions },
+          { label: 'Weight', value: product.weight },
+          { label: 'Power', value: product.power },
+          { label: 'Duplex', value: product.duplex },
+          { label: 'Resolution', value: product.resolution },
+          { label: 'Copy Feature', value: product.copyfeature },
+          { label: 'Scan Feature', value: product.scanfeature },
+          { label: 'Wireless', value: product.wireless },
+        ]
+      : [
+          { label: 'Processor', value: product.processor },
+          { label: 'Graphics', value: product.graphics },
+          { label: 'Display', value: product.display },
+          { label: 'Memory', value: product.memory },
+          { label: 'Storage', value: product.storage },
+          { label: 'Adapter', value: product.adapter },
+          { label: 'Wi-Fi', value: product.wifi },
+          { label: 'Bluetooth', value: product.bluetooth },
+          { label: 'Camera', value: product.camera },
+          { label: 'Ports', value: product.port },
+          { label: 'Operating System', value: product.os },
+          { label: 'Microphone', value: product.mic },
+          { label: 'Battery', value: product.battery },
+        ]
+  ).filter((spec) => spec.value);
 
   return (
     <div className={`min-h-screen flex flex-col bg-white ${openSans.className}`}>
@@ -228,15 +377,14 @@ const ProductPage = () => {
           {/* Left Column - Images */}
           <div>
             {/* Main Image */}
-            <div className="mb-4 bg-white border p-6 border-gray-300 rounded-sm overflow-hidden flex items-center justify-center min-h-[400px]">
-              <Image
-                src={images[selectedImage]}
-                alt={product.name}
-                width={600}
-                height={500}
-                unoptimized
-                className="w-full h-auto object-contain max-w-full max-h-full"
-              />
+            <div className="mb-4 relative bg-white border border-gray-300 rounded-sm overflow-hidden flex items-center justify-center h-[340px] sm:h-[400px] lg:h-[460px]">
+              {renderProductImage(
+                images[selectedImage] || product.image,
+                product.name,
+                'h-full w-auto max-h-full max-w-full object-contain',
+                { width: 600, height: 500 },
+                product.type === 'printer' ? '/printer-category.png' : '/big-laptop.png',
+              )}
             </div>
 
             {/* Thumbnail Carousel */}
@@ -264,14 +412,13 @@ const ProductPage = () => {
                       selectedImage === index ? 'border-[#00aeef]' : 'border-gray-200'
                     }`}
                   >
-                    <Image
-                      src={img}
-                      alt={`Thumbnail ${index + 1}`}
-                      width={80}
-                      height={80}
-                      unoptimized
-                      className="w-20 h-20 object-contain"
-                    />
+                    {renderProductImage(
+                      img,
+                      `Thumbnail ${index + 1}`,
+                      'w-20 h-20 object-contain',
+                      { width: 80, height: 80 },
+                      product.type === 'printer' ? '/printer-category.png' : '/big-laptop.png',
+                    )}
                   </button>
                 ))}
               </div>
@@ -318,83 +465,87 @@ const ProductPage = () => {
 
             {/* Pricing */}
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-3xl font-bold text-[#00aeef]">PKR {formatPrice(product.price)}</span>
+              <span className="text-3xl font-bold text-[#00aeef]">
+                {product.price > 0 ? `PKR ${formatPrice(product.price)}` : 'Price on request'}
+              </span>
             </div>
 
-            {/* Row 1: Colors and Memory */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Color
-                </label>
-                <div className="flex gap-2">
-                  {[
-                    { id: 'space-gray', label: 'Space Gray' },
-                    { id: 'silver', label: 'Silver' },
-                  ].map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setSelectedColor(option.id)}
-                      className={`px-4 py-2 text-sm border rounded-sm transition ${
-                        selectedColor === option.id
-                          ? 'border-[#00aeef] text-[#00aeef]'
-                          : 'border-gray-300 text-gray-600 hover:border-[#00aeef]'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+            {isLaptop && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Color
+                  </label>
+                  <div className="flex gap-2">
+                    {[
+                      { id: 'space-gray', label: 'Space Gray' },
+                      { id: 'silver', label: 'Silver' },
+                    ].map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setSelectedColor(option.id)}
+                        className={`px-4 py-2 text-sm border rounded-sm transition ${
+                          selectedColor === option.id
+                            ? 'border-[#00aeef] text-[#00aeef]'
+                            : 'border-gray-300 text-gray-600 hover:border-[#00aeef]'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Memory
+                  </label>
+                  <select
+                    value={selectedMemory}
+                    onChange={(e) => setSelectedMemory(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                  >
+                    <option value="8GB">8GB Unified Memory</option>
+                    <option value="16GB">16GB Unified Memory</option>
+                    <option value="24GB">24GB Unified Memory</option>
+                  </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Memory
-                </label>
-                <select
-                  value={selectedMemory}
-                  onChange={(e) => setSelectedMemory(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
-                >
-                  <option value="8GB">8GB Unified Memory</option>
-                  <option value="16GB">16GB Unified Memory</option>
-                  <option value="24GB">24GB Unified Memory</option>
-                </select>
-              </div>
-            </div>
+            )}
 
-            {/* Row 2: Size and Storage */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Size
-                </label>
-                <select
-                  value={selectedSize}
-                  onChange={(e) => setSelectedSize(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
-                >
-                  <option value="13-inch">13-inch Retina Display</option>
-                  <option value="14-inch">14-inch Liquid Retina XDR</option>
-                  <option value="16-inch">16-inch Liquid Retina XDR</option>
-                </select>
+            {isLaptop && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Size
+                  </label>
+                  <select
+                    value={selectedSize}
+                    onChange={(e) => setSelectedSize(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                  >
+                    <option value="13-inch">13-inch Retina Display</option>
+                    <option value="14-inch">14-inch Liquid Retina XDR</option>
+                    <option value="16-inch">16-inch Liquid Retina XDR</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Storage
+                  </label>
+                  <select
+                    value={selectedStorage}
+                    onChange={(e) => setSelectedStorage(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                  >
+                    <option value="256GB">256GB SSD</option>
+                    <option value="512GB">512GB SSD</option>
+                    <option value="1TB">1TB SSD</option>
+                    <option value="2TB">2TB SSD</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Storage
-                </label>
-                <select
-                  value={selectedStorage}
-                  onChange={(e) => setSelectedStorage(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
-                >
-                  <option value="256GB">256GB SSD</option>
-                  <option value="512GB">512GB SSD</option>
-                  <option value="1TB">1TB SSD</option>
-                  <option value="2TB">2TB SSD</option>
-                </select>
-              </div>
-            </div>
+            )}
 
             {/* Quantity Selector */}
             <div>

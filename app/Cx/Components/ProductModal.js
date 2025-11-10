@@ -24,19 +24,97 @@ const formatPrice = (value) => {
   return `PKR ${numeric.toLocaleString('en-PK')}`;
 };
 
+const extractImageArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value.imageUrls) && value.imageUrls.length) {
+    return value.imageUrls.filter((url) => typeof url === 'string' && url.trim() !== '');
+  }
+  if (Array.isArray(value.image_urls) && value.image_urls.length) {
+    return value.image_urls.filter((url) => typeof url === 'string' && url.trim() !== '');
+  }
+  if (Array.isArray(value.images) && value.images.length) {
+    return value.images.filter((url) => typeof url === 'string' && url.trim() !== '');
+  }
+  if (Array.isArray(value.imageurls) && value.imageurls.length) {
+    return value.imageurls.filter((url) => typeof url === 'string' && url.trim() !== '');
+  }
+  if (typeof value.image === 'string' && value.image.trim() !== '') {
+    return [value.image.trim()];
+  }
+  return [];
+};
+
+const resolveProductType = (value) => {
+  const rawType =
+    value?.type ||
+    (typeof value?.category === 'string' ? value.category : undefined);
+  if (typeof rawType === 'string') {
+    const normalized = rawType.toLowerCase();
+    if (normalized.includes('printer')) return 'printer';
+    if (normalized.includes('laptop')) return 'laptop';
+  }
+  return 'laptop';
+};
+
 const sanitizeProduct = (input) => {
   if (!input) return null;
+  const type = resolveProductType(input);
+  const images = extractImageArray(input);
+  const hasId = input.id !== null && input.id !== undefined;
+  const rawId = hasId ? input.id.toString() : '';
+  const computedName =
+    input.name ||
+    (type === 'printer'
+      ? [input.brand, input.series].filter(Boolean).join(' ').trim()
+      : [input.brand, input.model || input.series].filter(Boolean).join(' ').trim());
+  const finalName = computedName && computedName.trim()
+    ? computedName.trim()
+    : type === 'printer'
+      ? 'Printer'
+      : 'Product';
+  const normalizedDescription =
+    typeof input.description === 'string' ? input.description.trim() : '';
+  const description =
+    normalizedDescription ||
+    (type === 'printer'
+      ? [input.resolution, input.copyfeature, input.scanfeature, input.duplex]
+          .filter(Boolean)
+          .join(' • ')
+      : input.processor || input.graphics || finalName);
+  const cartId = input.cartId || (type && rawId ? `${type}-${rawId}` : rawId);
+  const category = input.category || (type === 'printer' ? 'Printers' : 'Laptops');
+  const primaryImage =
+    images[0] ||
+    input.image ||
+    (type === 'printer' ? '/printer-category.png' : '/big-laptop.png');
+
+  const numericPrice = toNumber(input.price, 0);
   return {
     ...input,
-    price: toNumber(input.price, 0),
+    id: rawId || input.id,
+    type,
+    category,
+    cartId,
+    name: finalName,
+    description,
+    price: numericPrice,
+    hasPrice: Number.isFinite(numericPrice) && numericPrice > 0,
     rating: toNumber(input.rating, 4.5),
     reviews: toNumber(input.reviews, 0),
+    image: primaryImage,
+    imageUrls: images.length ? images : [primaryImage],
+    image_urls: images.length ? images : [primaryImage],
+    images: images.length ? images : [primaryImage],
   };
 };
 
 const ProductModal = ({ isOpen, onClose, product }) => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [selectedColor, setSelectedColor] = useState('space-gray');
+  const [selectedMemory, setSelectedMemory] = useState('8GB');
+  const [selectedSize, setSelectedSize] = useState('13-inch');
+  const [selectedStorage, setSelectedStorage] = useState('256GB');
   const thumbnailScrollRef = useRef(null);
   const { addToCart } = useCart();
 
@@ -48,6 +126,10 @@ const ProductModal = ({ isOpen, onClose, product }) => {
     if (!isOpen) {
       setSelectedImage(0);
       setQuantity(1);
+      setSelectedColor('space-gray');
+      setSelectedMemory('8GB');
+      setSelectedSize('13-inch');
+      setSelectedStorage('256GB');
       setProductData(sanitizeProduct(product));
       setProductError('');
       setLoadingProduct(false);
@@ -57,20 +139,23 @@ const ProductModal = ({ isOpen, onClose, product }) => {
     const sanitized = sanitizeProduct(product);
     setProductData(sanitized);
 
-    if (!product?.id) return;
+    const resolvedType = sanitized?.type || 'laptop';
+    const productIdentifier = product?.id ?? sanitized?.id;
+    if (!productIdentifier) return;
 
     let active = true;
     const loadProduct = async () => {
       try {
         setLoadingProduct(true);
         setProductError('');
-        const response = await fetch(`http://localhost:3001/api/laptops/${product.id}`);
+        const endpoint = resolvedType === 'printer' ? 'printers' : 'laptops';
+        const response = await fetch(`http://localhost:3001/api/${endpoint}/${productIdentifier}`);
         if (!response.ok) {
           throw new Error('Failed to load product details');
         }
         const data = await response.json();
         if (!active) return;
-        setProductData(sanitizeProduct({ ...product, ...data }));
+        setProductData(sanitizeProduct({ ...sanitized, ...data, type: resolvedType }));
       } catch (error) {
         console.error('Product modal fetch error:', error);
         if (active) {
@@ -92,13 +177,8 @@ const ProductModal = ({ isOpen, onClose, product }) => {
   const productImages = useMemo(() => {
     const source = productData;
     if (!source) return ['/big-laptop.png'];
-    if (Array.isArray(source.images) && source.images.length > 0) {
-      return source.images.map((img) => img || '/big-laptop.png');
-    }
-    if (source.image) {
-      return [source.image];
-    }
-    return ['/big-laptop.png'];
+    const fromSanitized = extractImageArray(source);
+    return fromSanitized.length ? fromSanitized : ['/big-laptop.png'];
   }, [productData]);
 
   const renderProductImage = (src, alt, className, size) => {
@@ -127,30 +207,47 @@ const ProductModal = ({ isOpen, onClose, product }) => {
 
   if (!isOpen || !productData) return null;
 
-  const name = productData.name || 'Product';
+  const productType = productData.type || 'laptop';
+  const name = productData.name || (productType === 'printer' ? 'Printer' : 'Product');
   const ratingValue = toNumber(productData.rating, 4.5);
   const reviewsCount = toNumber(productData.reviews, 0);
   const priceValue = toNumber(productData.price, 0);
   const brand = productData.brand || 'Unknown';
   const sku = productData.model || productData.series || `SKU-${productData.id}`;
-  const formattedPrice = formatPrice(priceValue);
+  const formattedPrice = priceValue > 0 ? formatPrice(priceValue) : 'Price on request';
   const description = productData.description || productData.title || name;
-  const specs = [
-    { label: 'Processor', value: productData.processor },
-    { label: 'Graphics', value: productData.graphics },
-    { label: 'Memory', value: productData.memory },
-    { label: 'Storage', value: productData.storage },
-    { label: 'Display', value: productData.display },
-    { label: 'Operating System', value: productData.os },
-  ].filter((spec) => spec.value);
+  const specs =
+    productType === 'printer'
+      ? []
+      : [
+          { label: 'Processor', value: productData.processor },
+          { label: 'Graphics', value: productData.graphics },
+          { label: 'Memory', value: productData.memory },
+          { label: 'Storage', value: productData.storage },
+          { label: 'Display', value: productData.display },
+          { label: 'Operating System', value: productData.os },
+          { label: 'Adapter', value: productData.adapter },
+          { label: 'Wi-Fi', value: productData.wifi },
+          { label: 'Bluetooth', value: productData.bluetooth },
+          { label: 'Camera', value: productData.camera },
+          { label: 'Ports', value: productData.port },
+          { label: 'Microphone', value: productData.mic },
+          { label: 'Battery', value: productData.battery },
+        ].filter((spec) => spec.value);
 
   const handleAddToCart = () => {
+    const cartId = productData.cartId || (productType ? `${productType}-${productData.id}` : productData.id);
     addToCart(
       {
-        id: productData.id,
+        id: cartId,
+        productId: productData.id,
+        type: productType,
+        category: productData.category,
         name,
         image: productImages[0],
         price: priceValue,
+        brand,
+        sku,
       },
       quantity,
     );
@@ -320,16 +417,84 @@ const ProductModal = ({ isOpen, onClose, product }) => {
                   <div className="text-sm text-blue-500">Refreshing product details...</div>
                 )}
 
-                {specs.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border border-gray-200 rounded-sm p-4">
-                    {specs.map((spec) => (
-                      <div key={spec.label} className="text-sm">
-                        <span className="font-semibold text-gray-900">{spec.label}:</span>{' '}
-                        <span className="text-gray-600">{spec.value}</span>
+                {productType !== 'printer' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Color
+                        </label>
+                        <div className="flex gap-2">
+                          {[
+                            { id: 'space-gray', label: 'Space Gray' },
+                            { id: 'silver', label: 'Silver' },
+                          ].map((option) => (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => setSelectedColor(option.id)}
+                              className={`px-4 py-2 text-sm border rounded-sm transition ${
+                                selectedColor === option.id
+                                  ? 'border-[#00aeef] text-[#00aeef]'
+                                  : 'border-gray-300 text-gray-600 hover:border-[#00aeef]'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    ))}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Memory
+                        </label>
+                        <select
+                          value={selectedMemory}
+                          onChange={(e) => setSelectedMemory(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                        >
+                          <option value="8GB">8GB Unified Memory</option>
+                          <option value="16GB">16GB Unified Memory</option>
+                          <option value="24GB">24GB Unified Memory</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Size
+                        </label>
+                        <select
+                          value={selectedSize}
+                          onChange={(e) => setSelectedSize(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                        >
+                          <option value="13-inch">13-inch Retina Display</option>
+                          <option value="14-inch">14-inch Liquid Retina XDR</option>
+                          <option value="16-inch">16-inch Liquid Retina XDR</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Storage
+                        </label>
+                        <select
+                          value={selectedStorage}
+                          onChange={(e) => setSelectedStorage(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                        >
+                          <option value="256GB">256GB SSD</option>
+                          <option value="512GB">512GB SSD</option>
+                          <option value="1TB">1TB SSD</option>
+                          <option value="2TB">2TB SSD</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 )}
+
+                
 
                 <div className="flex gap-4">
                   <div>

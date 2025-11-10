@@ -103,7 +103,7 @@ router.post('/', async (req, res) => {
 
     const orderItems = items.map((item) => ({
       order_id: order.id,
-      product_id: item.id || null,
+      product_id: item.productId || item.id || null,
       name: item.name,
       price: item.price || 0,
       quantity: item.quantity || 1,

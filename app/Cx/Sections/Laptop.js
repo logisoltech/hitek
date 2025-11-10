@@ -48,14 +48,32 @@ const Laptop = () => {
           throw new Error('Failed to load laptops');
         }
         const data = await response.json();
-        const normalized = (Array.isArray(data) ? data : []).map((item) => ({
-          ...item,
-          price: parseNumeric(item.price, 0),
-          rating: parseNumeric(item.rating, 4.5),
-          reviews: parseNumeric(item.reviews, 120),
-          description: item.description || item.title || item.name,
-          image: item.image || '/laptop-category.jpg',
-        }));
+        const normalized = (Array.isArray(data) ? data : []).map((item) => {
+          const rawImageUrls = Array.isArray(item.image_urls)
+            ? item.image_urls.filter((url) => typeof url === 'string' && url.trim() !== '')
+            : [];
+          const primaryImage = rawImageUrls[0] || item.image || '/laptop-category.jpg';
+          const imageArray = rawImageUrls.length ? rawImageUrls : [primaryImage];
+          const rawId = item.id !== null && item.id !== undefined && item.id.toString
+            ? item.id.toString()
+            : item.id;
+
+          return {
+            ...item,
+            id: rawId,
+            cartId: rawId ? `laptop-${rawId}` : undefined,
+            type: 'laptop',
+            category: 'Laptops',
+            price: parseNumeric(item.price, 0),
+            rating: parseNumeric(item.rating, 4.5),
+            reviews: parseNumeric(item.reviews, 120),
+            description: item.description || item.title || item.name,
+            image: primaryImage,
+            imageUrls: imageArray,
+            image_urls: imageArray,
+            images: imageArray,
+          };
+        });
         setProducts(normalized);
       } catch (err) {
         console.error('Laptops fetch error:', err);
@@ -98,6 +116,146 @@ const Laptop = () => {
     setSelectedProduct(null);
   };
 
+  const renderCardImage = (src, alt, className, size = { width: 160, height: 160 }) => {
+    if (src?.startsWith('http')) {
+      return (
+        <img
+          src={src}
+          alt={alt}
+          className={className}
+          style={{ width: size.width, height: size.height }}
+        />
+      );
+    }
+    return (
+      <Image
+        src={src || '/laptop-category.jpg'}
+        alt={alt}
+        width={size.width}
+        height={size.height}
+        className={className}
+      />
+    );
+  };
+
+  const LaptopCard = ({ product }) => {
+    const images = Array.isArray(product.imageUrls) && product.imageUrls.length
+      ? product.imageUrls
+      : [product.image || '/laptop-category.jpg'];
+    const [activeImage, setActiveImage] = useState(0);
+
+    const handlePrev = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveImage((prev) => (prev - 1 + images.length) % images.length);
+    };
+
+    const handleNext = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveImage((prev) => (prev + 1) % images.length);
+    };
+
+    const handleDotSelect = (event, index) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveImage(index);
+    };
+
+    return (
+      <div
+        key={product.id}
+        onClick={() => handleProductClick(product)}
+        className="relative bg-white border border-gray-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col shrink-0 w-[234px] h-[320px]"
+      >
+        {product.label && (
+          <div className={`absolute top-2 left-2 ${product.label.color} text-white text-xs font-bold px-2 py-1 rounded z-10`}>
+            {product.label.text}
+          </div>
+        )}
+
+        <div
+          className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+            <CiHeart className="text-lg" />
+          </div>
+          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+            <CiShoppingCart className="text-lg" />
+          </div>
+          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+            <FaRegEye className="text-lg" />
+          </div>
+        </div>
+
+        <div className="relative w-full h-40 flex items-center justify-center p-4 bg-white">
+          {renderCardImage(
+            images[activeImage],
+            `${product.name} preview ${activeImage + 1}`,
+            'object-contain max-h-full max-w-full',
+            { width: 160, height: 160 },
+          )}
+
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 border border-gray-200 text-gray-600 rounded-full p-1 hover:bg-white"
+                aria-label="Previous product image"
+              >
+                <FaChevronLeft className="text-xs" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 border border-gray-200 text-gray-600 rounded-full p-1 hover:bg-white"
+                aria-label="Next product image"
+              >
+                <FaChevronRight className="text-xs" />
+              </button>
+
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white/80 rounded-full px-2 py-1">
+                {images.map((_, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={(event) => handleDotSelect(event, index)}
+                    className={`w-2 h-2 rounded-full transition ${
+                      index === activeImage ? 'bg-[#00aeef]' : 'bg-gray-300 hover:bg-gray-400'
+                    }`}
+                    aria-label={`Show image ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="p-4 flex flex-col flex-1">
+          <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
+            {renderStars(product.rating)}
+            <span className="text-gray-600 text-xs ml-1">
+              ({Number(product.reviews || 0).toLocaleString('en-PK')})
+            </span>
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+          {product.description && (
+            <p className="text-xs text-gray-500 line-clamp-2 mb-2">
+              {product.description}
+            </p>
+          )}
+          <div className="flex items-baseline gap-2 mt-auto">
+            <span className="text-base font-bold text-gray-900">
+              PKR {Number(product.price || 0).toLocaleString('en-PK')}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={`w-full py-8 lg:py-12 bg-white ${openSans.className}`}>
       <div className="max-w-7xl mx-auto px-8">
@@ -135,64 +293,8 @@ const Laptop = () => {
               </div>
             ) : (
               displayProducts.map((product) => (
-              <div
-                key={product.id}
-                onClick={() => handleProductClick(product)}
-                className="relative bg-white border border-gray-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col shrink-0 w-[234px] h-[320px]"
-              >
-                {product.label && (
-                  <div className={`absolute top-2 left-2 ${product.label.color} text-white text-xs font-bold px-2 py-1 rounded z-10`}>
-                    {product.label.text}
-                  </div>
-                )}
-
-                {/* Hover icons */}
-                <div 
-                  className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                    <CiHeart className="text-lg" />
-                  </div>
-                  <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                    <CiShoppingCart className="text-lg" />
-                  </div>
-                  <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                    <FaRegEye className="text-lg" />
-                  </div>
-                </div>
-
-                <div className="w-full h-40 flex items-center justify-center p-4 bg-white">
-                  <Image
-                    src="/laptop-category.jpg"
-                    alt={product.name}
-                    width={120}
-                    height={120}
-                    className="object-contain"
-                  />
-                </div>
-
-                <div className="p-4 flex flex-col flex-1">
-                  <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
-                      {renderStars(product.rating)}
-                      <span className="text-gray-600 text-xs ml-1">
-                        ({Number(product.reviews || 0).toLocaleString('en-PK')})
-                      </span>
-                  </div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
-                  {product.description && (
-                    <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-                      {product.description}
-                    </p>
-                  )}
-                  <div className="flex items-baseline gap-2 mt-auto">
-                    <span className="text-base font-bold text-gray-900">
-                      PKR {Number(product.price || 0).toLocaleString('en-PK')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))
+                <LaptopCard key={product.id} product={product} />
+              ))
             )}
           </div>
 
