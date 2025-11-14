@@ -20,6 +20,26 @@ const normalizeStatus = (status) => {
   return status.toString().toLowerCase();
 };
 
+const extractCustomerName = (order, user) => {
+  if (!order && !user) return 'Guest User';
+
+  const orderName =
+    order?.customer_name ||
+    [order?.first_name, order?.last_name].filter(Boolean).join(' ') ||
+    order?.user_name ||
+    order?.user_email;
+  if (orderName && orderName.trim()) return orderName.trim();
+
+  const userName =
+    user?.full_name ||
+    [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
+    user?.name ||
+    user?.email;
+  if (userName && userName.trim()) return userName.trim();
+
+  return 'Guest User';
+};
+
 const isPendingStatus = (status) => {
   const normalized = normalizeStatus(status);
   return normalized === 'pending' || normalized === 'in_progress';
@@ -132,19 +152,45 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { userId } = req.query;
-    if (!userId) {
-      return res.status(400).json({ error: 'userId query parameter is required' });
+
+    let query = supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false });
+
+    if (userId) {
+      query = query.eq('user_id', userId);
     }
 
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    res.json(data || []);
+    const enriched = await Promise.all(
+      (data || []).map(async (order) => {
+        if (!order?.user_id) {
+          return {
+            ...order,
+            customer_name: extractCustomerName(order),
+          };
+        }
+
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id, first_name, last_name, full_name, name, email')
+          .eq('id', order.user_id)
+          .single();
+
+        if (userError) {
+          console.error('Failed to fetch user for order', order.id, userError.message);
+        }
+
+        return {
+          ...order,
+          customer_name: extractCustomerName(order, userData),
+          user: userData || null,
+        };
+      }),
+    );
+
+    res.json(enriched);
   } catch (error) {
     console.error('Fetch orders error:', error);
     res.status(500).json({ error: error.message || 'Failed to load orders' });
