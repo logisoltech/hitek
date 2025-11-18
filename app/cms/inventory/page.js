@@ -13,6 +13,9 @@ import {
   FiTag,
   FiPrinter,
   FiMonitor,
+  FiEdit2,
+  FiX,
+  FiCheckCircle,
 } from 'react-icons/fi';
 
 const parseNumeric = (value, fallback = 0) => {
@@ -71,6 +74,12 @@ const CmsInventoryPage = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all');
+  const [stockModalOpen, setStockModalOpen] = useState(false);
+  const [stockTarget, setStockTarget] = useState(null);
+  const [stockValue, setStockValue] = useState('');
+  const [stockSaving, setStockSaving] = useState(false);
+  const [stockError, setStockError] = useState('');
+  const [stockSuccess, setStockSuccess] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -114,6 +123,93 @@ const CmsInventoryPage = () => {
 
     fetchProducts();
   }, []);
+
+  const openStockModal = (product) => {
+    setStockTarget(product);
+    setStockValue(
+      product && product.stock !== null && product.stock !== undefined
+        ? String(product.stock)
+        : '',
+    );
+    setStockError('');
+    setStockSuccess('');
+    setStockModalOpen(true);
+  };
+
+  const closeStockModal = () => {
+    if (stockSaving) return;
+    setStockModalOpen(false);
+    setStockTarget(null);
+    setStockValue('');
+    setStockError('');
+    setStockSuccess('');
+  };
+
+  const handleStockSubmit = async (event) => {
+    event.preventDefault();
+    if (!stockTarget) return;
+
+    const parsedStock = Number(stockValue);
+    if (!Number.isFinite(parsedStock) || parsedStock < 0) {
+      setStockError('Stock must be a zero or positive number.');
+      return;
+    }
+
+    setStockSaving(true);
+    setStockError('');
+    setStockSuccess('');
+
+    try {
+      const endpoint = stockTarget.type === 'printer' ? 'printers' : 'laptops';
+      const response = await fetch(
+        `http://localhost:3001/api/${endpoint}/${stockTarget.id}/stock`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ stock: parsedStock }),
+        },
+      );
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to update stock.');
+      }
+
+      const normalizedPayload = Array.isArray(payload) ? payload[0] : payload;
+      let sanitized = sanitizeProduct(normalizedPayload, stockTarget.type);
+      if (!sanitized) {
+        sanitized = {
+          ...stockTarget,
+          stock: parsedStock,
+          lastUpdated: stockTarget.lastUpdated,
+        };
+      }
+
+      setProducts((prev) =>
+        prev.map((product) =>
+          product.id === sanitized.id && product.type === sanitized.type
+            ? { ...product, ...sanitized }
+            : product,
+        ),
+      );
+
+      setStockTarget((prev) => (prev ? { ...prev, ...sanitized } : prev));
+      setStockSuccess('Stock updated successfully.');
+      setStockValue(String(sanitized.stock ?? parsedStock));
+
+      setTimeout(() => {
+        closeStockModal();
+      }, 800);
+    } catch (err) {
+      console.error('Stock update error:', err);
+      setStockError(err.message || 'Failed to update stock.');
+    } finally {
+      setStockSaving(false);
+    }
+  };
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -269,14 +365,16 @@ const CmsInventoryPage = () => {
                       </div>
                     </div>
 
-                    <div className="text-xs text-white/60">
-                      Last updated:{' '}
-                      {product.lastUpdated
-                        ? new Date(product.lastUpdated).toLocaleString('en-PK', {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
-                          })
-                        : 'Unknown'}
+                    
+
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => openStockModal(product)}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-linear-to-r from-[#38bdf8] to-[#6366f1] text-xs font-semibold text-white hover:from-[#0ea5e9] hover:to-[#4338ca] transition shadow-lg shadow-[#6366f1]/30"
+                      >
+                        <FiEdit2 />
+                        Update Stock
+                      </button>
                     </div>
                   </div>
                 </article>
@@ -284,6 +382,87 @@ const CmsInventoryPage = () => {
           </div>
         </section>
       </div>
+
+      {stockModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10">
+          <div
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            onClick={closeStockModal}
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-md bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-6 space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Update Stock</h2>
+                <p className="mt-1 text-xs text-slate-300 leading-snug">
+                  {stockTarget?.name || 'Selected product'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeStockModal}
+                className="text-slate-400 hover:text-white transition disabled:opacity-60"
+                disabled={stockSaving}
+              >
+                <FiX className="text-xl" />
+              </button>
+            </div>
+
+            <form className="space-y-4" onSubmit={handleStockSubmit}>
+              <div>
+                <label
+                  className="block text-xs font-semibold text-slate-300 mb-1"
+                  htmlFor="stockValue"
+                >
+                  Stock Count
+                </label>
+                <input
+                  id="stockValue"
+                  type="number"
+                  min="0"
+                  value={stockValue}
+                  onChange={(event) => setStockValue(event.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#38bdf8]"
+                  placeholder="Enter stock quantity"
+                  disabled={stockSaving}
+                />
+              </div>
+
+              {stockError && (
+                <div className="text-xs text-red-200 bg-red-900/40 border border-red-500/40 rounded-md px-3 py-2">
+                  {stockError}
+                </div>
+              )}
+
+              {stockSuccess && (
+                <div className="inline-flex items-center gap-2 text-xs text-emerald-200 bg-emerald-900/40 border border-emerald-500/40 rounded-md px-3 py-2">
+                  <FiCheckCircle />
+                  {stockSuccess}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeStockModal}
+                  className="px-4 py-2 rounded-lg border border-white/10 text-sm font-semibold text-slate-200 hover:bg-white/10 transition disabled:opacity-60"
+                  disabled={stockSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-linear-to-r from-[#38bdf8] to-[#6366f1] text-sm font-semibold text-white hover:from-[#0ea5e9] hover:to-[#4338ca] transition disabled:opacity-70 disabled:cursor-not-allowed"
+                  disabled={stockSaving}
+                >
+                  {stockSaving && <FiRefreshCw className="animate-spin" />}
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

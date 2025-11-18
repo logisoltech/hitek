@@ -3,11 +3,182 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { FaRegUser, FaClipboardList, FaTruck, FaShoppingCart, FaRegHeart, FaAddressCard, FaHistory, FaCog, FaSignOutAlt, FaEllipsisH } from 'react-icons/fa';
-import { FiChevronRight, FiMapPin, FiPhone, FiMail, FiEdit2, FiMinus, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiChevronRight, FiMapPin, FiPhone, FiMail, FiEdit2, FiMinus, FiPlus, FiTrash2, FiCheckCircle, FiTruck as FiTruckIcon, FiPackage, FiShoppingBag, FiClock, FiRefreshCw, FiAlertCircle, FiEye, FiEyeOff } from 'react-icons/fi';
+
 import Navbar from '../Cx/Layout/Navbar';
 import Footer from '../Cx/Layout/Footer';
 import { openSans } from '../Cx/Font/font';
 import { useCart } from '../Cx/Providers/CartProvider';
+
+const ORDER_DETAIL_STEPS = [
+  { id: 'placed', label: 'Order Placed', icon: FiShoppingBag },
+  { id: 'processing', label: 'Packaging', icon: FiPackage },
+  { id: 'in_transit', label: 'On The Road', icon: FiTruckIcon },
+  { id: 'delivered', label: 'Delivered', icon: FiCheckCircle },
+];
+
+const normalizeOrderDetailStatus = (status) => {
+  if (!status) return 'placed';
+  const normalized = status.toString().toLowerCase();
+  if (normalized.includes('deliver')) return 'delivered';
+  if (normalized.includes('road') || normalized.includes('transit') || normalized.includes('ship')) return 'in_transit';
+  if (normalized.includes('pack') || normalized.includes('process')) return 'processing';
+  return 'placed';
+};
+
+const normalizeOrderDetailAddress = (address, fallbackName = '') => {
+  if (!address) {
+    return {
+      name: fallbackName,
+      lines: [],
+      phone: '',
+      email: '',
+    };
+  }
+
+  if (typeof address === 'string') {
+    const lines = address
+      .split(/\r?\n|,/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return {
+      name: fallbackName,
+      lines,
+      phone: '',
+      email: '',
+    };
+  }
+
+  const cityLine = [address.city, address.state, address.postal_code]
+    .filter((part) => typeof part === 'string' && part.trim())
+    .join(', ');
+
+  const lines = [address.line1, address.line2, cityLine, address.country]
+    .filter((line) => typeof line === 'string' && line.trim())
+    .map((line) => line.trim());
+
+  return {
+    name: address.name || fallbackName,
+    lines,
+    phone: address.phone || '',
+    email: address.email || '',
+  };
+};
+
+const parseAmount = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const sanitizeOrderDetailData = (raw) => {
+  if (!raw) return null;
+  const status = normalizeOrderDetailStatus(raw.status || raw.order_status);
+  const items = Array.isArray(raw.order_items)
+    ? raw.order_items.map((item) => {
+        const metadata = item.metadata || {};
+        const fallbackImage = (metadata?.category || item.category || '').toLowerCase().includes('printer')
+          ? '/printer-category.png'
+          : '/laptop-category.jpg';
+        const quantity = parseAmount(item.quantity || 1) || 1;
+        const price = parseAmount(item.price || 0);
+        return {
+          id: item.id,
+          name: item.name || item.product_name || metadata.name || 'Product',
+          description: item.description || metadata.description || '',
+          price,
+          quantity,
+          subtotal: price * quantity,
+          image: item.image || metadata.image || fallbackImage,
+        };
+      })
+    : [];
+
+  return {
+    id: raw.id,
+    number: raw.order_number || raw.id,
+    status,
+    placedAt: raw.created_at || raw.createdAt || null,
+    expectedDelivery: raw.expected_delivery || raw.expectedDelivery || null,
+    subtotal: parseAmount(raw.subtotal || raw.total || 0),
+    tax: parseAmount(raw.tax),
+    shippingCost: parseAmount(raw.shipping),
+    total: parseAmount(raw.total || raw.totalamount || 0),
+    notes: raw.notes || raw.order_notes || '',
+    items,
+    billing: normalizeOrderDetailAddress(
+      raw.billing_address || raw.billingAddress || raw.billing,
+      raw.customer_name || raw.user?.name || ''
+    ),
+    shipping: normalizeOrderDetailAddress(
+      raw.shipping_address || raw.shippingAddress || raw.shipping,
+      raw.customer_name || raw.user?.name || ''
+    ),
+    customer: raw.user || {
+      name: raw.customer_name || '',
+      email: raw.user_email || raw.email || '',
+      phone: raw.user_phone || raw.phone || '',
+    },
+  };
+};
+
+const buildOrderDetailTimeline = (status) => {
+  const normalized = normalizeOrderDetailStatus(status);
+  const activeIndex = ORDER_DETAIL_STEPS.findIndex((step) => step.id === normalized);
+  return ORDER_DETAIL_STEPS.map((step, index) => ({
+    ...step,
+    completed: activeIndex >= 0 ? index <= activeIndex : index === 0,
+    current: activeIndex >= 0 ? index === activeIndex : index === 0,
+  }));
+};
+
+const buildOrderDetailActivity = (order) => {
+  if (!order) return [];
+  return [
+    {
+      id: 'placed',
+      label: 'Your order has been placed successfully. Thank you for shopping with us!',
+      timestamp: order.placedAt,
+      completed: true,
+    },
+    {
+      id: 'processing',
+      label: 'Our warehouse team is packaging your order carefully.',
+      timestamp: order.placedAt,
+      completed: ['processing', 'in_transit', 'delivered'].includes(order.status),
+    },
+    {
+      id: 'in_transit',
+      label: 'Your order is on the way to you.',
+      timestamp: order.expectedDelivery,
+      completed: ['in_transit', 'delivered'].includes(order.status),
+    },
+    {
+      id: 'delivered',
+      label: 'Your order has been delivered successfully.',
+      timestamp: order.expectedDelivery,
+      completed: order.status === 'delivered',
+    },
+  ];
+};
+
+const orderActivityIconMap = {
+  placed: FiCheckCircle,
+  processing: FiPackage,
+  in_transit: FiTruckIcon,
+  delivered: FiCheckCircle,
+};
+
+const formatDate = (dateString, includeTime = true) => {
+  if (!dateString) return '—';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: includeTime ? 'numeric' : undefined,
+    minute: includeTime ? 'numeric' : undefined,
+  });
+};
 
 const ProfilePage = () => {
   const [userInfo, setUserInfo] = useState(null);
@@ -20,6 +191,7 @@ const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const { cartItems, cartSubtotal, cartCount, updateQuantity, removeFromCart, clearCart } = useCart();
   const [cardForm, setCardForm] = useState({
+    name: '',
     cardNumber: '',
     cvc: '',
     expiry: '',
@@ -27,7 +199,64 @@ const ProfilePage = () => {
   });
   const [cardFormMessage, setCardFormMessage] = useState('');
   const [orderHistoryPage, setOrderHistoryPage] = useState(0);
+  const [trackOrdersPage, setTrackOrdersPage] = useState(0);
   const ORDER_HISTORY_PAGE_SIZE = 5;
+  const TRACK_ORDER_PAGE_SIZE = 5;
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
+  const [selectedOrderLoading, setSelectedOrderLoading] = useState(false);
+  const [selectedOrderError, setSelectedOrderError] = useState('');
+  const [cardMenuOpen, setCardMenuOpen] = useState(null);
+  const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
+  const [accountForm, setAccountForm] = useState({
+    displayName: '',
+    username: '',
+    fullName: '',
+    email: '',
+    secondaryEmail: '',
+    phone: '',
+    country: 'Pakistan',
+    city: '',
+    zip: '',
+  });
+  const [accountMessage, setAccountMessage] = useState('');
+  const [billingForm, setBillingForm] = useState({
+    firstName: '',
+    lastName: '',
+    company: '',
+    address: '',
+    country: 'Pakistan',
+    region: '',
+    city: '',
+    zip: '',
+    email: '',
+    phone: '',
+  });
+  const [shippingForm, setShippingForm] = useState({
+    firstName: '',
+    lastName: '',
+    company: '',
+    address: '',
+    country: 'Pakistan',
+    region: '',
+    city: '',
+    zip: '',
+    email: '',
+    phone: '',
+  });
+  const [billingMessage, setBillingMessage] = useState('');
+  const [shippingMessage, setShippingMessage] = useState('');
+  const [passwordForm, setPasswordForm] = useState({
+    current: '',
+    newPassword: '',
+    confirm: '',
+  });
+  const [passwordVisibility, setPasswordVisibility] = useState({
+    current: false,
+    newPassword: false,
+    confirm: false,
+  });
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     const loadUser = async () => {
@@ -115,6 +344,7 @@ const ProfilePage = () => {
   const navigationItems = [
     { label: 'Dashboard', icon: <FaRegUser /> },
     { label: 'Order History', icon: <FaClipboardList /> },
+    { label: 'Order Details', icon: <FaClipboardList /> },
     { label: 'Track Order', icon: <FaTruck /> },
     { label: 'Shopping Cart', icon: <FaShoppingCart /> },
     { label: 'Wishlist', icon: <FaRegHeart /> },
@@ -164,16 +394,18 @@ const ProfilePage = () => {
 
   const paymentCards = [
     {
+      id: 'visa-3814',
       brand: 'Visa',
       mask: '**** **** **** 3814',
       holder: 'Azlan Khan',
-      color: 'bg-gradient-to-r from-sky-600 to-sky-500',
+      gradient: 'from-[#0d3fa1] to-[#1c7ed6]',
     },
     {
+      id: 'mastercard-1761',
       brand: 'Mastercard',
       mask: '**** **** **** 1761',
       holder: 'Azlan Khan',
-      color: 'bg-gradient-to-r from-green-500 to-emerald-500',
+      gradient: 'from-[#0b8a41] to-[#20c997]',
     },
   ];
 
@@ -181,7 +413,8 @@ const ProfilePage = () => {
     return orders.map((order) => {
       const itemCount = order.order_items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
       return {
-        id: `#${order.id}`,
+        id: order.id,
+        displayId: `#${order.id}`,
         status: order.status?.toUpperCase?.() || 'PENDING',
         date: order.created_at ? new Date(order.created_at).toLocaleString() : '—',
         total: `PKR ${Number(order.total || 0).toLocaleString('en-PK')} (${itemCount} Products)`,
@@ -301,6 +534,56 @@ const ProfilePage = () => {
   const handleCardFormSubmit = (event) => {
     event.preventDefault();
     setCardFormMessage('Card saving feature is coming soon. Your details were captured locally.');
+    closeAddCardModal();
+  };
+
+  const handleViewOrderDetails = async (orderId) => {
+    if (!orderId) return;
+    setSelectedOrderLoading(true);
+    setSelectedOrderError('');
+    setActiveTab('Order Details');
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/orders/${orderId}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Unable to find this order.');
+        }
+        throw new Error('Failed to load order details.');
+      }
+      const data = await response.json();
+      setSelectedOrderDetails(sanitizeOrderDetailData(data));
+    } catch (error) {
+      console.error('Load order details error:', error);
+      setSelectedOrderError(error.message || 'Failed to load order details.');
+      setSelectedOrderDetails(null);
+    } finally {
+      setSelectedOrderLoading(false);
+    }
+  };
+
+  const handleCardMenuToggle = (cardId) => {
+    setCardMenuOpen((prev) => (prev === cardId ? null : cardId));
+  };
+
+  const handleCardAction = (action, card) => {
+    console.log(`${action} triggered for`, card);
+    setCardMenuOpen(null);
+  };
+
+  const resetCardForm = () => {
+    setCardForm({
+      name: '',
+      cardNumber: '',
+      cvc: '',
+      expiry: '',
+      provider: 'Visa',
+    });
+  };
+
+  const closeAddCardModal = () => {
+    setIsAddCardModalOpen(false);
+    resetCardForm();
   };
 
   useEffect(() => {
@@ -324,6 +607,67 @@ const ProfilePage = () => {
       setHistoryPage(Math.max(0, totalHistoryPages - 1));
     }
   }, [historyPage, totalHistoryPages]);
+
+  useEffect(() => {
+    const totalTrackPages = Math.max(
+      1,
+      Math.ceil(orders.length / TRACK_ORDER_PAGE_SIZE),
+    );
+    if (trackOrdersPage > totalTrackPages - 1) {
+      setTrackOrdersPage(Math.max(0, totalTrackPages - 1));
+    }
+  }, [orders.length, trackOrdersPage, TRACK_ORDER_PAGE_SIZE]);
+
+  useEffect(() => {
+    if (activeTab === 'Track Order') {
+      setTrackOrdersPage(0);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!userInfo) return;
+    const fullName = [userInfo.first_name, userInfo.last_name].filter(Boolean).join(' ');
+    setAccountForm((prev) => ({
+      ...prev,
+      displayName: userInfo.display_name || fullName || userInfo.email || '',
+      username: userInfo.username || '',
+      fullName: fullName || '',
+      email: userInfo.email || '',
+      secondaryEmail: userInfo.secondary_email || '',
+      phone: userInfo.phone || '',
+      country: userInfo.country || 'Pakistan',
+      city: userInfo.city || '',
+      zip: userInfo.zip || userInfo.postal_code || '',
+    }));
+
+    setBillingForm((prev) => ({
+      ...prev,
+      firstName: userInfo.first_name || '',
+      lastName: userInfo.last_name || '',
+      company: userInfo.company || '',
+      address: userInfo.address || userInfo.billing_address || '',
+      country: userInfo.country || 'Pakistan',
+      region: userInfo.province || '',
+      city: userInfo.city || '',
+      zip: userInfo.zip || userInfo.postal_code || '',
+      email: userInfo.email || '',
+      phone: userInfo.phone || '',
+    }));
+
+    setShippingForm((prev) => ({
+      ...prev,
+      firstName: userInfo.first_name || '',
+      lastName: userInfo.last_name || '',
+      company: userInfo.company || '',
+      address: userInfo.shipment_address || userInfo.address || '',
+      country: userInfo.country || 'Pakistan',
+      region: userInfo.shipping_province || '',
+      city: userInfo.shipping_city || userInfo.city || '',
+      zip: userInfo.shipping_zip || userInfo.zip || '',
+      email: userInfo.email || '',
+      phone: userInfo.phone || '',
+    }));
+  }, [userInfo]);
 
   const renderOrderHistorySection = ({
     title = 'Recent Order',
@@ -402,14 +746,19 @@ const ProfilePage = () => {
                       : 'text-blue-500';
                   return (
                     <tr key={`${order.id}-${startIndex + index}`} className={(startIndex + index) % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-6 py-3 font-medium text-gray-900">{order.id}</td>
+                      <td className="px-6 py-3 font-medium text-gray-900">{order.displayId}</td>
                       <td className={`px-6 py-3 font-semibold ${statusColor}`}>{order.status}</td>
                       <td className="px-6 py-3">{order.date}</td>
                       <td className="px-6 py-3 text-gray-900 font-medium">{order.total}</td>
                       <td className="px-6 py-3">
-                        <Link href="#" className="text-[#00aeef] font-semibold flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleViewOrderDetails(order.id)}
+                          className="text-[#00aeef] font-semibold flex items-center gap-1 hover:underline disabled:opacity-60"
+                          disabled={selectedOrderLoading}
+                        >
                           View Details <FiChevronRight className="text-xs" />
-                        </Link>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -539,6 +888,84 @@ const ProfilePage = () => {
     </div>
   );
 
+  const handleAccountInputChange = (event) => {
+    const { name, value } = event.target;
+    setAccountForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setAccountMessage('');
+  };
+
+  const handleAccountSubmit = (event) => {
+    event.preventDefault();
+    setAccountMessage('Changes saved locally. Connect backend to persist updates.');
+  };
+
+  const handleBillingChange = (event) => {
+    const { name, value } = event.target;
+    setBillingForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setBillingMessage('');
+  };
+
+  const handleShippingChange = (event) => {
+    const { name, value } = event.target;
+    setShippingForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setShippingMessage('');
+  };
+
+  const handleBillingSubmit = (event) => {
+    event.preventDefault();
+    setBillingMessage('Billing address saved locally. Connect backend to persist updates.');
+  };
+
+  const handleShippingSubmit = (event) => {
+    event.preventDefault();
+    setShippingMessage('Shipping address saved locally. Connect backend to persist updates.');
+  };
+
+  const handlePasswordInputChange = (event) => {
+    const { name, value } = event.target;
+    setPasswordForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setPasswordError('');
+    setPasswordMessage('');
+  };
+
+  const togglePasswordVisibility = (field) => {
+    setPasswordVisibility((prev) => ({
+      ...prev,
+      [field]: !prev[field],
+    }));
+  };
+
+  const handlePasswordSubmit = (event) => {
+    event.preventDefault();
+    if (!passwordForm.current || !passwordForm.newPassword || !passwordForm.confirm) {
+      setPasswordError('Please fill out all password fields.');
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters.');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirm) {
+      setPasswordError('New password and confirmation do not match.');
+      return;
+    }
+    setPasswordError('');
+    setPasswordMessage('Password updated locally. Connect backend to finalize.');
+    setPasswordForm({ current: '', newPassword: '', confirm: '' });
+  };
+
   return (
     <div className={`min-h-screen flex flex-col bg-gray-50 ${openSans.className}`}>
       <Navbar />
@@ -561,15 +988,24 @@ const ProfilePage = () => {
               {navigationItems.map((item) => {
                 const isActive = activeTab === item.label;
                 const isLogout = item.label === 'Log out';
+                const isOrderDetails = item.label === 'Order Details';
+                const isDisabledOrderDetails = isOrderDetails && !selectedOrderDetails && !selectedOrderLoading;
                 return (
                   <li key={item.label}>
                     <button
                       type="button"
+                      disabled={isDisabledOrderDetails}
                       onClick={() => {
                         if (isLogout) {
                           if (typeof window !== 'undefined') {
                             window.localStorage.removeItem('user');
                             window.location.href = '/';
+                          }
+                          return;
+                        }
+                        if (isOrderDetails) {
+                          if (!isDisabledOrderDetails) {
+                            setActiveTab('Order Details');
                           }
                           return;
                         }
@@ -581,7 +1017,7 @@ const ProfilePage = () => {
                           : isLogout
                           ? 'text-red-500 hover:bg-red-50'
                           : 'text-gray-700 hover:bg-gray-100'
-                      }`}
+                      } ${isDisabledOrderDetails ? 'opacity-60 cursor-not-allowed' : ''}`}
                     >
                       <span className="text-base">{item.icon}</span>
                       <span className="flex-1 text-left">{item.label}</span>
@@ -705,22 +1141,52 @@ const ProfilePage = () => {
                 <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">Payment Option</h3>
-                    <Link href="#" className="text-[#00aeef] text-sm font-semibold flex items-center gap-2">
+                    <button
+                      onClick={() => setIsAddCardModalOpen(true)}
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-[#00aeef] hover:text-[#0099d9] transition"
+                    >
                       Add Card <FiChevronRight />
-                    </Link>
+                    </button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {paymentCards.map((card) => (
                       <div
-                        key={card.mask}
-                        className={`${card.color} text-white rounded-xl p-5 relative shadow-lg overflow-hidden`}
+                        key={card.id}
+                        className={`relative ${cardMenuOpen === card.id ? 'z-10' : ''} overflow-hidden rounded-xl p-5 shadow-lg bg-linear-to-r ${card.gradient} text-white`}
                       >
-                        <button className="absolute top-4 right-4 text-white/80 hover:text-white transition">
-                          <FaEllipsisH />
-                        </button>
-                        <div className="text-sm uppercase tracking-wide mb-4 opacity-80">Card Number</div>
-                        <div className="text-xl font-semibold mb-6">{card.mask}</div>
-                        <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-start justify-between">
+                          <div className="text-xs uppercase tracking-wide opacity-80">Card Number</div>
+                          <button
+                            type="button"
+                            onClick={() => handleCardMenuToggle(card.id)}
+                            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition"
+                            aria-label="Card actions"
+                          >
+                            <FaEllipsisH />
+                          </button>
+                          {cardMenuOpen === card.id && (
+                            <div className="absolute right-4 top-12 bg-white text-gray-700 rounded-md shadow-lg border border-gray-200 w-36 z-10">
+                              <button
+                                type="button"
+                                onClick={() => handleCardAction('Edit Card', card)}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              >
+                                Edit Card
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCardAction('Delete Card', card)}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              >
+                                Delete Card
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-4 text-2xl font-semibold tracking-widest">{card.mask}</div>
+
+                        <div className="mt-6 flex items-center justify-between text-sm">
                           <div>
                             <p className="opacity-80">Name on card</p>
                             <p className="font-semibold text-base">{card.holder}</p>
@@ -756,6 +1222,428 @@ const ProfilePage = () => {
                   paginate: true,
                 })}
               </>
+            )}
+
+            {activeTab === 'Track Order' && (
+              <>
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
+                  <h2 className="text-lg font-semibold text-gray-900">Track Your Orders</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Select any order below to view real-time tracking details, product breakdowns, and delivery updates.
+                  </p>
+                </div>
+
+                {(() => {
+                  const totalTrackPages = Math.max(
+                    1,
+                    Math.ceil(orders.length / TRACK_ORDER_PAGE_SIZE),
+                  );
+                  const currentTrackPage = Math.min(trackOrdersPage, totalTrackPages - 1);
+                  const startIndex = currentTrackPage * TRACK_ORDER_PAGE_SIZE;
+                  const visibleOrders = orders.slice(
+                    startIndex,
+                    startIndex + TRACK_ORDER_PAGE_SIZE,
+                  );
+
+                  return (
+                    <>
+                      <div className="space-y-4">
+                        {ordersLoading ? (
+                          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center text-sm text-gray-500">
+                            Fetching your orders...
+                          </div>
+                        ) : ordersError ? (
+                          <div className="bg-white border border-red-200 rounded-lg shadow-sm p-10 text-center text-sm text-red-500">
+                            {ordersError}
+                          </div>
+                        ) : orders.length === 0 ? (
+                          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center text-sm text-gray-500">
+                            You haven't placed any orders yet. Once you do, you can track them all here.
+                          </div>
+                        ) : (
+                          visibleOrders.map((order) => {
+                            const orderStatus = order.status?.toUpperCase?.() || 'PENDING';
+                            const statusColor =
+                              orderStatus === 'COMPLETED'
+                                ? 'text-green-600 bg-green-50'
+                                : orderStatus === 'IN PROGRESS'
+                                ? 'text-amber-600 bg-amber-50'
+                                : orderStatus === 'CANCELED'
+                                ? 'text-red-600 bg-red-50'
+                                : 'text-blue-600 bg-blue-50';
+
+                            const itemCount =
+                              order.order_items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+
+                            return (
+                              <div
+                                key={order.id}
+                                className="bg-white border border-gray-200 rounded-lg shadow-sm p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+                              >
+                                <div className="flex flex-1 flex-col gap-2">
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                                    <p className="text-sm font-semibold text-gray-900">
+                                      Order ID:{' '}
+                                      <span className="text-gray-700">
+                                        #{order.id}
+                                      </span>
+                                    </p>
+                                    <span className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full ${statusColor}`}>
+                                      {orderStatus}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600">
+                                    Placed on{' '}
+                                    <span className="text-gray-900">
+                                      {order.created_at
+                                        ? new Date(order.created_at).toLocaleString('en-PK', {
+                                            dateStyle: 'medium',
+                                            timeStyle: 'short',
+                                          })
+                                        : 'Unknown'}
+                                    </span>
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    Total:{' '}
+                                    <span className="text-gray-900 font-semibold">
+                                      PKR {Number(order.total || 0).toLocaleString('en-PK')}
+                                    </span>{' '}
+                                    • {itemCount} product{itemCount === 1 ? '' : 's'}
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                  {order.expected_delivery && (
+                                    <div className="text-xs text-gray-500">
+                                      Expected Delivery:{' '}
+                                      <span className="text-gray-900 font-medium">
+                                        {new Date(order.expected_delivery).toLocaleDateString('en-PK', {
+                                          dateStyle: 'medium',
+                                        })}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewOrderDetails(order.id)}
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-[#00aeef] text-white hover:bg-[#0099d9] text-sm font-semibold transition disabled:opacity-60"
+                                    disabled={selectedOrderLoading}
+                                  >
+                                    Track Order <FiChevronRight />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {orders.length > TRACK_ORDER_PAGE_SIZE && !ordersLoading && !ordersError && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
+                          <button
+                            type="button"
+                            onClick={() => setTrackOrdersPage(Math.max(0, currentTrackPage - 1))}
+                            className="inline-flex items-center justify-center px-3 py-1.5 rounded-md border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={currentTrackPage === 0}
+                          >
+                            Previous
+                          </button>
+                          <div className="flex items-center gap-2 justify-center">
+                            {Array.from({ length: totalTrackPages }).map((_, index) => (
+                              <button
+                                key={index}
+                                type="button"
+                                onClick={() => setTrackOrdersPage(index)}
+                                className={`w-8 h-8 rounded-md text-sm font-semibold ${
+                                  index === currentTrackPage
+                                    ? 'bg-[#00aeef] text-white'
+                                    : 'border border-gray-200 text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                {index + 1}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setTrackOrdersPage(Math.min(totalTrackPages - 1, currentTrackPage + 1))}
+                            className="inline-flex items-center justify-center px-3 py-1.5 rounded-md border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={currentTrackPage >= totalTrackPages - 1}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </>
+            )}
+
+            {activeTab === 'Order Details' && (
+              <div className="space-y-6">
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
+                  <h2 className="text-lg font-semibold text-gray-900">Order Details</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Review the current status and breakdown of your selected order.
+                  </p>
+                </div>
+
+                {selectedOrderLoading && (
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center text-sm text-gray-500">
+                    <FiRefreshCw className="mx-auto text-2xl animate-spin mb-3" />
+                    Loading order details...
+                  </div>
+                )}
+
+                {!selectedOrderLoading && selectedOrderError && (
+                  <div className="bg-white border border-red-200 rounded-lg shadow-sm p-10 text-center text-sm text-red-500">
+                    <FiAlertCircle className="mx-auto text-2xl mb-3" />
+                    {selectedOrderError}
+                  </div>
+                )}
+
+                {!selectedOrderLoading && !selectedOrderError && !selectedOrderDetails && (
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center text-sm text-gray-500">
+                    Select an order from Order History or Track Order to view its details here.
+                  </div>
+                )}
+
+                {!selectedOrderLoading && !selectedOrderError && selectedOrderDetails && (
+                  <>
+                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-6 py-6 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                          Order #{selectedOrderDetails.number}
+                        </p>
+                        <p className="mt-2 text-sm text-gray-700">
+                          {selectedOrderDetails.items.length} Product{selectedOrderDetails.items.length === 1 ? '' : 's'} • Order placed on{' '}
+                          <span className="font-semibold text-gray-900">{formatDate(selectedOrderDetails.placedAt)}</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          Total amount
+                        </p>
+                        <p className="text-3xl font-bold text-blue-500 mt-2">
+                          {formatCurrency(selectedOrderDetails.total)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const timeline = buildOrderDetailTimeline(selectedOrderDetails.status);
+                      const activeIndex = timeline.findIndex((step) => step.current);
+                      const completedIndex = activeIndex >= 0 ? activeIndex : timeline.findIndex((step) => step.completed);
+                      const denominator = Math.max(1, timeline.length - 1);
+                      const progressPercent = completedIndex <= 0
+                        ? completedIndex === 0
+                          ? 12
+                          : 0
+                        : Math.min(100, (completedIndex / denominator) * 100);
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+                          <p className="text-sm text-gray-600">
+                            Order expected arrival{' '}
+                            <span className="font-semibold text-gray-900">
+                              {formatDate(selectedOrderDetails.expectedDelivery, false)}
+                            </span>
+                          </p>
+                          <div className="mt-6 px-2">
+                            <div className="relative h-1 bg-blue-100 rounded-full">
+                              <div
+                                className="absolute inset-y-0 left-0 bg-blue-500 rounded-full transition-all duration-300"
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                            <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
+                              {timeline.map((step, index) => {
+                                const Icon = step.icon || FiCheckCircle;
+                                return (
+                                  <div key={step.id} className="flex flex-col items-center gap-2 text-center">
+                                    <span
+                                      className={`flex h-11 w-11 items-center justify-center rounded-full border-2 transition ${
+                                        step.completed
+                                          ? 'border-blue-500 bg-blue-500 text-white shadow-sm shadow-blue-200'
+                                          : 'border-blue-100 bg-white text-blue-200'
+                                      }`}
+                                    >
+                                      <Icon className="text-lg" />
+                                    </span>
+                                    <span
+                                      className={`text-xs font-semibold uppercase tracking-wide ${
+                                        step.completed ? 'text-blue-600' : 'text-gray-400'
+                                      }`}
+                                    >
+                                      {step.label}
+                                    </span>
+                                    <span className="text-[11px] text-gray-400">Step {index + 1}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {(() => {
+                      const activity = buildOrderDetailActivity(selectedOrderDetails);
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-3">
+                          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Order Activity</h3>
+                          {activity.map((entry, index) => {
+                            const Icon = orderActivityIconMap[entry.id] || FiClock;
+                            return (
+                              <div
+                                key={entry.id || index}
+                                className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"
+                              >
+                                <span
+                                  className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full border ${
+                                    entry.completed
+                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-500'
+                                      : 'border-gray-200 bg-white text-gray-400'
+                                  }`}
+                                >
+                                  <Icon className="text-sm" />
+                                </span>
+                                <div className="flex-1">
+                                  <p className="text-sm text-gray-800">{entry.label}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{formatDate(entry.timestamp)}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                    <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
+                          Product ({selectedOrderDetails.items.length.toString().padStart(2, '0')})
+                        </h3>
+                        <p className="text-sm text-gray-500">Review every item included in this order.</p>
+                      </div>
+                      <div className="overflow-hidden border border-gray-200 rounded-xl">
+                        <table className="min-w-full text-sm text-gray-700">
+                          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                            <tr>
+                              <th className="px-5 py-3 text-left font-semibold">Products</th>
+                              <th className="px-5 py-3 text-left font-semibold">Price</th>
+                              <th className="px-5 py-3 text-left font-semibold">Quantity</th>
+                              <th className="px-5 py-3 text-right font-semibold">Sub-total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 bg-white">
+                            {selectedOrderDetails.items.map((item) => (
+                              <tr key={item.id || item.name}>
+                                <td className="px-5 py-4">
+                                  <div className="flex items-start gap-4">
+                                    <div className="h-16 w-16 rounded-md border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+                                      <img src={item.image} alt={item.name} className="h-full w-full object-contain" />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                                      {item.description && (
+                                        <p className="text-xs text-gray-500 max-w-md">{item.description}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-5 py-4 text-sm text-gray-700">{formatCurrency(item.price)}</td>
+                                <td className="px-5 py-4 text-sm text-gray-700">x{item.quantity}</td>
+                                <td className="px-5 py-4 text-right text-sm font-semibold text-gray-900">
+                                  {formatCurrency(item.subtotal)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="w-full md:w-72 ml-auto space-y-1 text-sm text-gray-600">
+                        <div className="flex items-center justify-between">
+                          <span>Subtotal</span>
+                          <span className="text-gray-900 font-semibold">{formatCurrency(selectedOrderDetails.subtotal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Tax</span>
+                          <span className="text-gray-900 font-semibold">{formatCurrency(selectedOrderDetails.tax)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Shipping</span>
+                          <span className="text-gray-900 font-semibold">{formatCurrency(selectedOrderDetails.shippingCost)}</span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-gray-200 pt-2 mt-2 text-base font-semibold text-gray-900">
+                          <span>Total</span>
+                          <span>{formatCurrency(selectedOrderDetails.total)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 px-6 py-5 space-y-3">
+                        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Billing Address</h3>
+                        <div className="text-sm text-gray-700 leading-6 space-y-1">
+                          {selectedOrderDetails.billing.name && (
+                            <p className="font-semibold text-gray-900">{selectedOrderDetails.billing.name}</p>
+                          )}
+                          {selectedOrderDetails.billing.lines.length > 0 ? (
+                            selectedOrderDetails.billing.lines.map((line, index) => (
+                              <p key={index}>{line}</p>
+                            ))
+                          ) : (
+                            <p className="text-gray-500">No billing address provided.</p>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 space-y-1">
+                          {selectedOrderDetails.billing.phone && (
+                            <p className="flex items-center gap-2">
+                              <FiPhone /> {selectedOrderDetails.billing.phone}
+                            </p>
+                          )}
+                          {selectedOrderDetails.billing.email && (
+                            <p className="flex items-center gap-2">
+                              <FiMail /> {selectedOrderDetails.billing.email}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 px-6 py-5 space-y-3">
+                        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipping Address</h3>
+                        <div className="text-sm text-gray-700 leading-6 space-y-1">
+                          {selectedOrderDetails.shipping.name && (
+                            <p className="font-semibold text-gray-900">{selectedOrderDetails.shipping.name}</p>
+                          )}
+                          {selectedOrderDetails.shipping.lines.length > 0 ? (
+                            selectedOrderDetails.shipping.lines.map((line, index) => (
+                              <p key={index}>{line}</p>
+                            ))
+                          ) : (
+                            <p className="text-gray-500">No shipping address provided.</p>
+                          )}
+                        </div>
+                        {selectedOrderDetails.shipping.phone && (
+                          <div className="text-xs text-gray-500 space-y-1">
+                            <p className="flex items-center gap-2">
+                              <FiPhone /> {selectedOrderDetails.shipping.phone}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 px-6 py-5 space-y-3">
+                        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Order Notes</h3>
+                        <p className="text-sm text-gray-700 leading-6">
+                          {selectedOrderDetails.notes || 'No special instructions were provided for this order.'}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             {activeTab === 'Shopping Cart' && (
@@ -898,185 +1786,851 @@ const ProfilePage = () => {
 
             {activeTab === 'Cards & Address' && (
               <>
-                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
-                  <h2 className="text-lg font-semibold text-gray-900">Cards &amp; Address</h2>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Manage your saved payment methods and delivery locations to speed up future checkouts.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Saved Addresses</h3>
-                      
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">Payment Option</h2>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Keep your favourite cards on file for faster and safer checkout.
+                      </p>
                     </div>
-                    {loadingUser ? (
-                      <div className="text-sm text-gray-500">Loading addresses...</div>
-                    ) : userError ? (
-                      <div className="text-sm text-red-500">{userError}</div>
-                    ) : (
-                      <div className="space-y-4">
-                        {userAddresses.map((address, index) => (
-                          <div
-                            key={`${address.label}-${index}`}
-                            className="border border-gray-200 rounded-md p-4 flex flex-col gap-2"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-[#00aeef]">
-                                <FiMapPin />
-                              </div>
-                              <div>
-                                <h4 className="text-sm font-semibold text-gray-900">{address.label}</h4>
-                                <p className="text-xs text-gray-500">
-                                  Last updated {userInfo?.updated_at ? new Date(userInfo.updated_at).toLocaleDateString() : 'recently'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="text-sm text-gray-600 space-y-1">
-                              {address.lines.map((line, lineIndex) => (
-                                <p key={lineIndex}>{line}</p>
-                              ))}
-                              {address.phone && (
-                                <p className="flex items-center gap-2">
-                                  <FiPhone className="text-gray-400" /> <span>{address.phone}</span>
-                                </p>
-                              )}
-                              {address.email && (
-                                <p className="flex items-center gap-2">
-                                  <FiMail className="text-gray-400" /> <span>{address.email}</span>
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 pt-2">
-                              <button className="px-3 py-1.5 text-xs font-semibold text-[#00aeef] border border-[#00aeef] rounded-md hover:bg-[#00aeef] hover:text-white transition">
-                                Edit
-                              </button>
-                              <button className="px-3 py-1.5 text-xs font-semibold text-gray-500 border border-gray-200 rounded-md hover:bg-gray-100 transition">
-                                Set Default
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <button
+                      onClick={() => setIsAddCardModalOpen(true)}
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-[#00aeef] hover:text-[#0099d9] transition"
+                    >
+                      Add Card <FiChevronRight />
+                    </button>
                   </div>
 
-                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5 max-w-xl w-full mx-auto">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Add Payment Method</h3>
-                    <form className="space-y-3" onSubmit={handleCardFormSubmit}>
-                      <div>
-                        <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                          Card Number
-                        </label>
-                        <input
-                          type="text"
-                          id="cardNumber"
-                          name="cardNumber"
-                          value={cardForm.cardNumber}
-                          onChange={handleCardFormChange}
-                          placeholder="XXXX XXXX XXXX XXXX"
-                          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
-                          inputMode="numeric"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label htmlFor="cvc" className="block text-sm font-medium text-gray-700 mb-1">
-                            CVC
-                          </label>
-                          <input
-                            type="text"
-                            id="cvc"
-                            name="cvc"
-                            value={cardForm.cvc}
-                            onChange={handleCardFormChange}
-                            placeholder="123"
-                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
-                            inputMode="numeric"
-                          />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {paymentCards.map((card) => (
+                      <div
+                        key={card.id}
+                        className={`relative ${cardMenuOpen === card.id ? 'z-10' : ''} overflow-hidden rounded-xl p-5 shadow-lg bg-linear-to-r ${card.gradient} text-white`}
+                        onMouseLeave={() => setCardMenuOpen(null)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="text-xs uppercase tracking-wide opacity-80">Card Number</div>
+                          <button
+                            type="button"
+                            onClick={() => handleCardMenuToggle(card.id)}
+                            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition"
+                            aria-label="Card actions"
+                          >
+                            <FaEllipsisH />
+                          </button>
+                          {cardMenuOpen === card.id && (
+                            <div className="absolute right-4 top-12 bg-white text-gray-700 rounded-md shadow-lg border border-gray-200 w-36 z-10">
+                              <button
+                                type="button"
+                                onClick={() => handleCardAction('Edit Card', card)}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              >
+                                Edit Card
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCardAction('Delete Card', card)}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                              >
+                                Delete Card
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <label htmlFor="expiry" className="block text-sm font-medium text-gray-700 mb-1">
-                            Expiry Date
-                          </label>
-                          <input
-                            type="text"
-                            id="expiry"
-                            name="expiry"
-                            value={cardForm.expiry}
-                            onChange={handleCardFormChange}
-                            placeholder="MM/YY"
-                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
-                          />
+
+                        <div className="mt-4 text-2xl font-semibold tracking-widest">{card.mask}</div>
+
+                        <div className="mt-6 flex items-center justify-between text-sm">
+                          <div>
+                            <p className="opacity-80">Name on card</p>
+                            <p className="font-semibold text-base">{card.holder}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="opacity-80 uppercase text-xs">Type</p>
+                            <p className="font-semibold text-base">{card.brand}</p>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
 
-                      <div>
-                        <label htmlFor="provider" className="block text-sm font-medium text-gray-700 mb-1">
-                          Service Provider
-                        </label>
-                        <select
-                          id="provider"
-                          name="provider"
-                          value={cardForm.provider}
-                          onChange={handleCardFormChange}
-                          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Addresses</h3>
+                    <button className="inline-flex items-center gap-2 text-sm font-semibold text-[#00aeef] hover:text-[#0099d9] transition">
+                      Add Address <FiChevronRight />
+                    </button>
+                  </div>
+
+                  {loadingUser ? (
+                    <div className="text-sm text-gray-500">Loading addresses...</div>
+                  ) : userError ? (
+                    <div className="text-sm text-red-500">{userError}</div>
+                  ) : userAddresses.length === 0 ? (
+                    <div className="text-sm text-gray-500">No addresses saved yet.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {userAddresses.map((address, index) => (
+                        <div
+                          key={`${address.label}-${index}`}
+                          className="border border-gray-200 rounded-2xl p-5 flex flex-col gap-3"
                         >
-                          {paymentProviders.map((provider) => (
-                            <option key={provider} value={provider}>
-                              {provider}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {cardFormMessage && (
-                        <div className="text-sm text-green-600 bg-green-50 border border-green-100 rounded-md px-3 py-2">
-                          {cardFormMessage}
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              {address.label}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-gray-900">{displayName}</p>
+                          </div>
+                          <div className="text-sm text-gray-600 space-y-1">
+                            {address.lines.map((line, lineIndex) => (
+                              <p key={lineIndex}>{line}</p>
+                            ))}
+                            {address.phone && (
+                              <p className="flex items-center gap-2">
+                                <FiPhone className="text-gray-400" /> <span>{address.phone}</span>
+                              </p>
+                            )}
+                            {address.email && (
+                              <p className="flex items-center gap-2">
+                                <FiMail className="text-gray-400" /> <span>{address.email}</span>
+                              </p>
+                            )}
+                          </div>
+                          <div className="pt-2">
+                            <button className="px-4 py-2 text-xs font-semibold text-[#00aeef] border border-[#00aeef] rounded-md hover:bg-[#00aeef] hover:text-white transition">
+                              Edit Address
+                            </button>
+                          </div>
                         </div>
-                      )}
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="submit"
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#00aeef] text-white hover:bg-[#0099d9] text-sm font-semibold transition"
-                        >
-                          Save Card
-                        </button>
+                {isAddCardModalOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                    <div
+                      className="absolute inset-0 bg-black/40"
+                      onClick={closeAddCardModal}
+                      aria-hidden="true"
+                    />
+                    <div className="relative w-full max-w-md bg-white rounded-lg shadow-2xl border border-gray-200 p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-base font-semibold text-gray-900">Add New Card</h4>
                         <button
                           type="button"
-                          onClick={() => {
-                            setCardForm({
-                              cardNumber: '',
-                              cvc: '',
-                              expiry: '',
-                              provider: 'Visa',
-                            });
-                            setCardFormMessage('');
-                          }}
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-100 text-sm font-semibold transition"
+                          onClick={closeAddCardModal}
+                          className="text-gray-500 hover:text-gray-700 text-lg"
+                          aria-label="Close add card modal"
                         >
-                          Clear
+                          ×
                         </button>
                       </div>
-                    </form>
+
+                      <form className="space-y-3" onSubmit={handleCardFormSubmit}>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="cardName">
+                            Name on Card
+                          </label>
+                          <input
+                            id="cardName"
+                            name="name"
+                            type="text"
+                            value={cardForm.name}
+                            onChange={handleCardFormChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Azlan Khan"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="modalCardNumber">
+                            Card Number
+                          </label>
+                          <input
+                            id="modalCardNumber"
+                            name="cardNumber"
+                            type="text"
+                            value={cardForm.cardNumber}
+                            onChange={handleCardFormChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="XXXX XXXX XXXX XXXX"
+                            inputMode="numeric"
+                            required
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="modalExpiry">
+                              Expire Date
+                            </label>
+                            <input
+                              id="modalExpiry"
+                              name="expiry"
+                              type="text"
+                              value={cardForm.expiry}
+                              onChange={handleCardFormChange}
+                              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                              placeholder="MM/YY"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="modalCvc">
+                              CVC
+                            </label>
+                            <input
+                              id="modalCvc"
+                              name="cvc"
+                              type="text"
+                              value={cardForm.cvc}
+                              onChange={handleCardFormChange}
+                              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                              placeholder="123"
+                              inputMode="numeric"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#00aeef] text-white font-semibold hover:bg-[#0099d9] transition"
+                        >
+                          Add Card
+                        </button>
+                      </form>
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
 
-            {activeTab !== 'Dashboard' &&
-              activeTab !== 'Order History' &&
-              activeTab !== 'Shopping Cart' &&
-              activeTab !== 'Browsing History' &&
-              activeTab !== 'Cards & Address' && (
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-10 text-center">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">{activeTab}</h2>
-                <p className="text-sm text-gray-600">
-                  This section is coming soon. Stay tuned for updates!
-                </p>
+            {activeTab === 'Setting' && (
+              <div className="space-y-6">
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+                  <h2 className="text-lg font-semibold text-gray-900 uppercase tracking-wide">Account Setting</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Update your profile information to keep your account details accurate.
+                  </p>
+
+                  <form onSubmit={handleAccountSubmit} className="mt-6 space-y-6">
+                    <div className="flex flex-col md:flex-row md:items-start gap-6">
+                      <div className="w-24 h-24 rounded-full overflow-hidden bg-linear-to-br from-blue-500 to-blue-300 shrink-0">
+                        <img
+                          src={userInfo?.avatar || ''}
+                          alt={displayName}
+                          className="w-full h-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.src = '';
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="displayName">
+                            Display name
+                          </label>
+                          <input
+                            id="displayName"
+                            name="displayName"
+                            type="text"
+                            value={accountForm.displayName}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Display name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="username">
+                            Username
+                          </label>
+                          <input
+                            id="username"
+                            name="username"
+                            type="text"
+                            value={accountForm.username}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Display name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="fullName">
+                            Full Name
+                          </label>
+                          <input
+                            id="fullName"
+                            name="fullName"
+                            type="text"
+                            value={accountForm.fullName}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Full name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="email">
+                            Email
+                          </label>
+                          <input
+                            id="email"
+                            name="email"
+                            type="email"
+                            value={accountForm.email}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="example@email.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="secondaryEmail">
+                            Secondary Email
+                          </label>
+                          <input
+                            id="secondaryEmail"
+                            name="secondaryEmail"
+                            type="email"
+                            value={accountForm.secondaryEmail}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Optional"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="phone">
+                            Phone Number
+                          </label>
+                          <input
+                            id="phone"
+                            name="phone"
+                            type="text"
+                            value={accountForm.phone}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="+92-333-123-4567"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="country">
+                            Country/Region
+                          </label>
+                          <select
+                            id="country"
+                            name="country"
+                            value={accountForm.country}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          >
+                            <option value="Pakistan">Pakistan</option>
+                            <option value="United States">United States</option>
+                            <option value="United Kingdom">United Kingdom</option>
+                            <option value="Canada">Canada</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="city">
+                            City
+                          </label>
+                          <input
+                            id="city"
+                            name="city"
+                            type="text"
+                            value={accountForm.city}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Karachi"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="zip">
+                            Zip Code
+                          </label>
+                          <input
+                            id="zip"
+                            name="zip"
+                            type="text"
+                            value={accountForm.zip}
+                            onChange={handleAccountInputChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="75400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {accountMessage && (
+                      <div className="text-sm text-green-600 bg-green-50 border border-green-100 rounded-md px-3 py-2">
+                        {accountMessage}
+                      </div>
+                    )}
+
+                    <div>
+                      <button
+                        type="submit"
+                        className="inline-flex items-center justify-center px-5 py-2.5 rounded-md bg-[#00aeef] text-white font-semibold hover:bg-[#0099d9] transition"
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Billing Address</h3>
+                    <form onSubmit={handleBillingSubmit} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingFirstName">
+                            First Name
+                          </label>
+                          <input
+                            id="billingFirstName"
+                            name="firstName"
+                            type="text"
+                            value={billingForm.firstName}
+                            onChange={handleBillingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Azlan"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingLastName">
+                            Last Name
+                          </label>
+                          <input
+                            id="billingLastName"
+                            name="lastName"
+                            type="text"
+                            value={billingForm.lastName}
+                            onChange={handleBillingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Khan"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingCompany">
+                          Company Name (Optional)
+                        </label>
+                        <input
+                          id="billingCompany"
+                          name="company"
+                          type="text"
+                          value={billingForm.company}
+                          onChange={handleBillingChange}
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          placeholder="Company Name"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingAddress">
+                          Address
+                        </label>
+                        <input
+                          id="billingAddress"
+                          name="address"
+                          type="text"
+                          value={billingForm.address}
+                          onChange={handleBillingChange}
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          placeholder="Road No. 13/x, House no. 1320/C, Flat No. 5D"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingCountry">
+                            Country
+                          </label>
+                          <select
+                            id="billingCountry"
+                            name="country"
+                            value={billingForm.country}
+                            onChange={handleBillingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          >
+                            <option value="Pakistan">Pakistan</option>
+                            <option value="United States">United States</option>
+                            <option value="United Kingdom">United Kingdom</option>
+                            <option value="Canada">Canada</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingRegion">
+                            Region/State
+                          </label>
+                          <input
+                            id="billingRegion"
+                            name="region"
+                            type="text"
+                            value={billingForm.region}
+                            onChange={handleBillingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Sindh"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingCity">
+                            City
+                          </label>
+                          <input
+                            id="billingCity"
+                            name="city"
+                            type="text"
+                            value={billingForm.city}
+                            onChange={handleBillingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Karachi"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingZip">
+                            Zip Code
+                          </label>
+                          <input
+                            id="billingZip"
+                            name="zip"
+                            type="text"
+                            value={billingForm.zip}
+                            onChange={handleBillingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="74500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingEmail">
+                            Email
+                          </label>
+                          <input
+                            id="billingEmail"
+                            name="email"
+                            type="email"
+                            value={billingForm.email}
+                            onChange={handleBillingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="azlan12345@gmail.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="billingPhone">
+                            Phone Number
+                          </label>
+                          <input
+                            id="billingPhone"
+                            name="phone"
+                            type="text"
+                            value={billingForm.phone}
+                            onChange={handleBillingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="+92-333-1234567"
+                          />
+                        </div>
+                      </div>
+
+                      {billingMessage && (
+                        <div className="text-sm text-green-600 bg-green-50 border border-green-100 rounded-md px-3 py-2">
+                          {billingMessage}
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#00aeef] text-white text-sm font-semibold hover:bg-[#0099d9] transition"
+                      >
+                        Save Changes
+                      </button>
+                    </form>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipping Address</h3>
+                    <form onSubmit={handleShippingSubmit} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingFirstName">
+                            First Name
+                          </label>
+                          <input
+                            id="shippingFirstName"
+                            name="firstName"
+                            type="text"
+                            value={shippingForm.firstName}
+                            onChange={handleShippingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Azlan"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingLastName">
+                            Last Name
+                          </label>
+                          <input
+                            id="shippingLastName"
+                            name="lastName"
+                            type="text"
+                            value={shippingForm.lastName}
+                            onChange={handleShippingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Khan"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingCompany">
+                          Company Name (Optional)
+                        </label>
+                        <input
+                          id="shippingCompany"
+                          name="company"
+                          type="text"
+                          value={shippingForm.company}
+                          onChange={handleShippingChange}
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          placeholder="Company Name"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingAddress">
+                          Address
+                        </label>
+                        <input
+                          id="shippingAddress"
+                          name="address"
+                          type="text"
+                          value={shippingForm.address}
+                          onChange={handleShippingChange}
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          placeholder="Road No. 13/x, House no. 1320/C, Flat No. 5D"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingCountry">
+                            Country
+                          </label>
+                          <select
+                            id="shippingCountry"
+                            name="country"
+                            value={shippingForm.country}
+                            onChange={handleShippingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          >
+                            <option value="Pakistan">Pakistan</option>
+                            <option value="United States">United States</option>
+                            <option value="United Kingdom">United Kingdom</option>
+                            <option value="Canada">Canada</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingRegion">
+                            Region/State
+                          </label>
+                          <input
+                            id="shippingRegion"
+                            name="region"
+                            type="text"
+                            value={shippingForm.region}
+                            onChange={handleShippingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Select..."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingCity">
+                            City
+                          </label>
+                          <input
+                            id="shippingCity"
+                            name="city"
+                            type="text"
+                            value={shippingForm.city}
+                            onChange={handleShippingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="Karachi"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingZip">
+                            Zip Code
+                          </label>
+                          <input
+                            id="shippingZip"
+                            name="zip"
+                            type="text"
+                            value={shippingForm.zip}
+                            onChange={handleShippingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="75400"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingEmail">
+                            Email
+                          </label>
+                          <input
+                            id="shippingEmail"
+                            name="email"
+                            type="email"
+                            value={shippingForm.email}
+                            onChange={handleShippingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="azlan12345@gmail.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="shippingPhone">
+                            Phone Number
+                          </label>
+                          <input
+                            id="shippingPhone"
+                            name="phone"
+                            type="text"
+                            value={shippingForm.phone}
+                            onChange={handleShippingChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                            placeholder="+92-333-1234567"
+                          />
+                        </div>
+                      </div>
+
+                      {shippingMessage && (
+                        <div className="text-sm text-green-600 bg-green-50 border border-green-100 rounded-md px-3 py-2">
+                          {shippingMessage}
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#00aeef] text-white text-sm font-semibold hover:bg-[#0099d9] transition"
+                      >
+                        Save Changes
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-5">
+                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Change Password</h3>
+                  <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="currentPassword">
+                        Current Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="currentPassword"
+                          name="current"
+                          type={passwordVisibility.current ? 'text' : 'password'}
+                          value={passwordForm.current}
+                          onChange={handlePasswordInputChange}
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          placeholder="Current password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => togglePasswordVisibility('current')}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                          aria-label={passwordVisibility.current ? 'Hide current password' : 'Show current password'}
+                        >
+                          {passwordVisibility.current ? <FiEyeOff /> : <FiEye />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="newPassword">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="newPassword"
+                          name="newPassword"
+                          type={passwordVisibility.newPassword ? 'text' : 'password'}
+                          value={passwordForm.newPassword}
+                          onChange={handlePasswordInputChange}
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          placeholder="8+ characters"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => togglePasswordVisibility('newPassword')}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                          aria-label={passwordVisibility.newPassword ? 'Hide new password' : 'Show new password'}
+                        >
+                          {passwordVisibility.newPassword ? <FiEyeOff /> : <FiEye />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="confirmPassword">
+                        Confirm Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="confirmPassword"
+                          name="confirm"
+                          type={passwordVisibility.confirm ? 'text' : 'password'}
+                          value={passwordForm.confirm}
+                          onChange={handlePasswordInputChange}
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                          placeholder="Confirm password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => togglePasswordVisibility('confirm')}
+                          className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
+                          aria-label={passwordVisibility.confirm ? 'Hide confirm password' : 'Show confirm password'}
+                        >
+                          {passwordVisibility.confirm ? <FiEyeOff /> : <FiEye />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {passwordError && (
+                      <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-md px-3 py-2">
+                        {passwordError}
+                      </div>
+                    )}
+
+                    {passwordMessage && (
+                      <div className="text-sm text-green-600 bg-green-50 border border-green-100 rounded-md px-3 py-2">
+                        {passwordMessage}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center px-5 py-2.5 rounded-md bg-[#00aeef] text-white font-semibold hover:bg-[#0099d9] transition"
+                    >
+                      Change Password
+                    </button>
+                  </form>
+                </div>
               </div>
             )}
           </section>
@@ -1089,4 +2643,5 @@ const ProfilePage = () => {
 };
 
 export default ProfilePage;
+
 

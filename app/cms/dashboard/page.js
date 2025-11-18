@@ -189,12 +189,13 @@ const CmsDashboardPage = () => {
                 </p>
               </div>
               <div className="flex gap-3 items-center">
-                <Link
-                  href="/"
+                <button
+                  type="button"
+                  onClick={() => router.push('/')}
                   className="px-4 py-2.5 border border-white/20 rounded-lg text-sm font-semibold text-white hover:bg-white/10 transition shadow-lg shadow-black/10"
                 >
                   View Storefront
-                </Link>
+                </button>
                 <button
                   onClick={handleSignOut}
                   className="px-4 py-2.5 bg-linear-to-r from-[#38bdf8] to-[#6366f1] hover:from-[#0ea5e9] hover:to-[#4338ca] text-white text-sm font-semibold rounded-lg transition shadow-lg shadow-[#6366f1]/40"

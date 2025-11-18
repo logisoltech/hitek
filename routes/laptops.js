@@ -51,5 +51,41 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.patch('/:id/stock', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stock } = req.body;
+
+    const idValue = Number(id);
+    const lookupId = Number.isFinite(idValue) ? idValue : id;
+
+    const stockString = String(stock ?? '').trim();
+    const parsedStock = Number(stockString);
+    if (!Number.isFinite(parsedStock) || parsedStock < 0) {
+      return res.status(400).json({ error: 'Stock must be a non-negative number' });
+    }
+
+    const { data, error } = await supabase
+      .from('laptops')
+      .update({ stock: stockString })
+      .eq('id', lookupId)
+      .select('*')
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+      console.error('Failed to update laptop stock:', error);
+      return res.status(500).json({ error: 'Failed to update stock' });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('Unexpected error updating laptop stock:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
 

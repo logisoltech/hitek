@@ -5,6 +5,7 @@ const userRoutes = require('./routes/users');
 const orderRoutes = require('./routes/orders');
 const laptopRoutes = require('./routes/laptops');
 const printerRoutes = require('./routes/printers');
+const productRoutes = require('./routes/products');
 const cmsAuthRoutes = require('./routes/cmsAuth');
 
 const app = express();
@@ -21,6 +22,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/laptops', laptopRoutes);
 app.use('/api/printers', printerRoutes);
+app.use('/api/products', productRoutes);
 app.use('/api/cms', cmsAuthRoutes);
 
 // Health check endpoint

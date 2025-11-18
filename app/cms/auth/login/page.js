@@ -98,10 +98,13 @@ const CmsLoginPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-linear-to-br from-[#0f172a] via-[#1e1b4b] to-[#020617] text-slate-100 flex items-center justify-center px-4 py-10">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.25),transparent_55%)] opacity-80 pointer-events-none" />
-      <div className="relative w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 bg-white/10 border border-white/10 rounded-3xl shadow-2xl backdrop-blur-xl overflow-hidden">
-        <div className="hidden lg:flex flex-col justify-between bg-linear-to-br from-[#1f2937]/80 via-[#312e81]/80 to-[#0f172a]/80 px-10 py-12 border-r border-white/10">
+    <div className="relative min-h-screen bg-[#020617] text-slate-100 flex items-center justify-center px-4 py-10 overflow-hidden">
+      <div className="absolute inset-0 bg-[conic-gradient(from_135deg_at_40%_20%,rgba(56,189,248,0.12),rgba(99,102,241,0.14),rgba(14,165,233,0.08),rgba(15,23,42,0.7))]" />
+      <div className="absolute -top-32 -right-28 h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.28),transparent_62%)] blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-48 -left-40 h-[640px] w-[640px] rounded-full bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.22),transparent_65%)] blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.16),transparent_58%)] pointer-events-none" />
+      <div className="relative w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 bg-white/10 border border-white/15 rounded-3xl shadow-[0_40px_120px_rgba(14,165,233,0.18)] backdrop-blur-2xl overflow-hidden">
+        <div className="hidden lg:flex flex-col justify-between bg-linear-to-br from-[#172554]/80 via-[#1e3a8a]/75 to-[#0f172a]/85 px-10 py-12 border-r border-white/10">
           <div>
             <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.35em] uppercase text-slate-300">
               <FiShield className="text-[#38bdf8]" />
@@ -137,7 +140,7 @@ const CmsLoginPage = () => {
 
         <div className="px-8 sm:px-10 py-12 flex flex-col justify-center">
           <div className="mb-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/20 bg-white/10 text-xs uppercase tracking-[0.25em] text-slate-200">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/20 bg-white/15 text-xs uppercase tracking-[0.25em] text-slate-200 shadow-inner shadow-black/10">
               <FiLogIn className="text-[#38bdf8]" />
               Sign in
             </div>
