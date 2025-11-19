@@ -17,13 +17,78 @@ const ORDER_DETAIL_STEPS = [
   { id: 'delivered', label: 'Delivered', icon: FiCheckCircle },
 ];
 
+const ORDER_STATUS_FLOW = [
+  { step: 'delivered', badge: 'Completed', tokens: ['completed', 'delivered'] },
+  {
+    step: 'in_transit',
+    badge: 'Completed',
+    tokens: ['in_transit', 'on_the_road', 'on the road', 'road', 'transit', 'ship', 'shipped', 'out_for_delivery'],
+  },
+  { step: 'processing', badge: 'Processing', tokens: ['processing', 'processed', 'pack', 'packaging', 'packed', 'in_progress'] },
+  { step: 'placed', badge: 'In Progress', tokens: ['placed', 'pending', 'initiated', 'created', 'order_placed'] },
+];
+
+const STEP_STATUS_LABELS = {
+  placed: 'In Progress',
+  processing: 'Processing',
+  in_transit: 'Completed',
+  delivered: 'Completed',
+};
+
+const ORDER_ACTIVITY_TEXT = {
+  placed: 'Your order has been placed successfully. Thank you for shopping with us!',
+  processing: 'Our warehouse team is packaging your order carefully.',
+  in_transit: 'Your order is on the way to you.',
+  delivered: 'Your order has been delivered successfully.',
+};
+
+const ACTIVITY_BADGE_STYLES = {
+  'In Progress': 'border-blue-200 bg-blue-50 text-blue-600',
+  Processing: 'border-amber-200 bg-amber-50 text-amber-600',
+  Completed: 'border-emerald-200 bg-emerald-50 text-emerald-600',
+};
+
+const PROVIDER_GRADIENT_MAP = {
+  VISA: 'from-[#0b1a4a] to-[#1e3a8a]',
+  MASTERCARD: 'from-[#b91c1c] to-[#f97316]',
+  EASYPAISA: 'from-[#373444] to-[#31b864]',
+  NAYAPAY: 'from-[#f97316] to-[#fb923c]',
+  SADAPAY: 'from-[#0f766e] to-[#f97316]',
+};
+
+const formatCardMask = (value) => {
+  const digits = (value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const masked = digits
+    .split('')
+    .map((char, index) => (index < digits.length - 4 ? '*' : char))
+    .join('');
+  return masked.replace(/(.{4})/g, '$1 ').trim();
+};
+
+const formatCardInput = (value) => {
+  const digits = (value || '').replace(/\D/g, '');
+  return digits.replace(/(.{4})/g, '$1 ').trim();
+};
+
+const formatExpiryInput = (value) => {
+  const digits = (value || '').replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+};
+
+const getOrderStatusMeta = (status) => {
+  const normalized = status ? status.toString().toLowerCase() : '';
+  for (const entry of ORDER_STATUS_FLOW) {
+    if (entry.tokens.some((token) => normalized.includes(token))) {
+      return entry;
+    }
+  }
+  return ORDER_STATUS_FLOW[ORDER_STATUS_FLOW.length - 1];
+};
+
 const normalizeOrderDetailStatus = (status) => {
-  if (!status) return 'placed';
-  const normalized = status.toString().toLowerCase();
-  if (normalized.includes('deliver')) return 'delivered';
-  if (normalized.includes('road') || normalized.includes('transit') || normalized.includes('ship')) return 'in_transit';
-  if (normalized.includes('pack') || normalized.includes('process')) return 'processing';
-  return 'placed';
+  return getOrderStatusMeta(status).step;
 };
 
 const normalizeOrderDetailAddress = (address, fallbackName = '') => {
@@ -37,6 +102,14 @@ const normalizeOrderDetailAddress = (address, fallbackName = '') => {
   }
 
   if (typeof address === 'string') {
+    try {
+      const parsed = JSON.parse(address);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return normalizeOrderDetailAddress(parsed, fallbackName);
+      }
+    } catch (error) {
+      // ignore JSON parse error and fallback to splitting
+    }
     const lines = address
       .split(/\r?\n|,/)
       .map((line) => line.trim())
@@ -72,10 +145,18 @@ const parseAmount = (value) => {
 
 const sanitizeOrderDetailData = (raw) => {
   if (!raw) return null;
-  const status = normalizeOrderDetailStatus(raw.status || raw.order_status);
+  const statusMeta = getOrderStatusMeta(raw.status || raw.order_status);
+  const status = statusMeta.step;
   const items = Array.isArray(raw.order_items)
     ? raw.order_items.map((item) => {
-        const metadata = item.metadata || {};
+        let metadata = item.metadata || {};
+        if (typeof metadata === 'string') {
+          try {
+            metadata = JSON.parse(metadata);
+          } catch (error) {
+            metadata = {};
+          }
+        }
         const fallbackImage = (metadata?.category || item.category || '').toLowerCase().includes('printer')
           ? '/printer-category.png'
           : '/laptop-category.jpg';
@@ -94,6 +175,8 @@ const sanitizeOrderDetailData = (raw) => {
     : [];
 
   return {
+    rawStatus: raw.status || raw.order_status || '',
+    statusBadge: statusMeta.badge,
     id: raw.id,
     number: raw.order_number || raw.id,
     status,
@@ -133,32 +216,16 @@ const buildOrderDetailTimeline = (status) => {
 
 const buildOrderDetailActivity = (order) => {
   if (!order) return [];
-  return [
-    {
-      id: 'placed',
-      label: 'Your order has been placed successfully. Thank you for shopping with us!',
-      timestamp: order.placedAt,
-      completed: true,
-    },
-    {
-      id: 'processing',
-      label: 'Our warehouse team is packaging your order carefully.',
-      timestamp: order.placedAt,
-      completed: ['processing', 'in_transit', 'delivered'].includes(order.status),
-    },
-    {
-      id: 'in_transit',
-      label: 'Your order is on the way to you.',
-      timestamp: order.expectedDelivery,
-      completed: ['in_transit', 'delivered'].includes(order.status),
-    },
-    {
-      id: 'delivered',
-      label: 'Your order has been delivered successfully.',
-      timestamp: order.expectedDelivery,
-      completed: order.status === 'delivered',
-    },
-  ];
+  const timeline = buildOrderDetailTimeline(order.status);
+  const activeIndex = timeline.findIndex((step) => step.current);
+  return timeline.map((step, index) => ({
+    id: step.id,
+    label: ORDER_ACTIVITY_TEXT[step.id] || step.label,
+    timestamp: index === 0 ? order.placedAt : order.expectedDelivery,
+    completed: index <= activeIndex,
+    current: index === activeIndex,
+    statusBadge: STEP_STATUS_LABELS[step.id] || 'In Progress',
+  }));
 };
 
 const orderActivityIconMap = {
@@ -169,7 +236,7 @@ const orderActivityIconMap = {
 };
 
 const formatDate = (dateString, includeTime = true) => {
-  if (!dateString) return '—';
+  if (!dateString) return '';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '—';
   return date.toLocaleDateString(undefined, {
@@ -191,13 +258,17 @@ const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const { cartItems, cartSubtotal, cartCount, updateQuantity, removeFromCart, clearCart } = useCart();
   const [cardForm, setCardForm] = useState({
+    id: '',
     name: '',
     cardNumber: '',
     cvc: '',
     expiry: '',
-    provider: 'Visa',
+    provider: 'VISA',
   });
   const [cardFormMessage, setCardFormMessage] = useState('');
+  const [cardFormError, setCardFormError] = useState('');
+  const [cardFormSubmitting, setCardFormSubmitting] = useState(false);
+  const [cardFormMode, setCardFormMode] = useState('add');
   const [orderHistoryPage, setOrderHistoryPage] = useState(0);
   const [trackOrdersPage, setTrackOrdersPage] = useState(0);
   const ORDER_HISTORY_PAGE_SIZE = 5;
@@ -272,7 +343,7 @@ const ProfilePage = () => {
         const userId = parsed?.id;
 
         if (!userId) {
-          setUserInfo(parsed);
+          setUserInfo({ ...parsed, cards: [] });
           setLoadingUser(false);
           return;
         }
@@ -282,7 +353,20 @@ const ProfilePage = () => {
           throw new Error('Failed to load user profile');
         }
         const data = await response.json();
-        setUserInfo(data);
+
+        let cards = [];
+        try {
+          const cardsResponse = await fetch(`http://localhost:3001/api/users/${userId}/cards`);
+          if (!cardsResponse.ok) {
+            throw new Error('Failed to load saved cards');
+          }
+          cards = await cardsResponse.json();
+        } catch (cardError) {
+          console.error('Card fetch error:', cardError);
+          cards = [];
+        }
+
+        setUserInfo({ ...data, cards });
       } catch (error) {
         console.error('Profile fetch error:', error);
         setUserError(error.message || 'Failed to load user profile.');
@@ -392,23 +476,6 @@ const ProfilePage = () => {
   const formatCurrency = (value) =>
     `PKR ${Number(value || 0).toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
 
-  const paymentCards = [
-    {
-      id: 'visa-3814',
-      brand: 'Visa',
-      mask: '**** **** **** 3814',
-      holder: 'Azlan Khan',
-      gradient: 'from-[#0d3fa1] to-[#1c7ed6]',
-    },
-    {
-      id: 'mastercard-1761',
-      brand: 'Mastercard',
-      mask: '**** **** **** 1761',
-      holder: 'Azlan Khan',
-      gradient: 'from-[#0b8a41] to-[#20c997]',
-    },
-  ];
-
   const formattedOrders = useMemo(() => {
     return orders.map((order) => {
       const itemCount = order.order_items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
@@ -425,6 +492,40 @@ const ProfilePage = () => {
   const recentOrders = useMemo(() => {
     return formattedOrders.slice(0, 7);
   }, [formattedOrders]);
+
+const providerDisplayNameMap = {
+  VISA: 'VISA',
+  MASTERCARD: 'MasterCard',
+  EASYPAISA: 'EasyPaisa',
+  NAYAPAY: 'NayaPay',
+  SADAPAY: 'SadaPay',
+};
+
+const userCards = useMemo(() => {
+  if (!userInfo?.cards || !Array.isArray(userInfo.cards) || userInfo.cards.length === 0) {
+    return [];
+  }
+
+  return userInfo.cards.map((card) => {
+    const provider = (card.provider || '').toUpperCase();
+    const providerLabel = providerDisplayNameMap[provider] || provider || 'CARD';
+    const gradient = PROVIDER_GRADIENT_MAP[provider] || 'from-gray-700 to-gray-900';
+    const mask = formatCardMask(card.card_number);
+    const holderName = card.name_on_card || displayName || 'Card Holder';
+
+    return {
+      id: card.id,
+      provider: providerLabel,
+      rawProvider: provider,
+      mask: mask || card.card_number,
+      holder: holderName,
+      gradient,
+      expiry: card.expiry || '',
+      number: card.card_number || '',
+      cvc: card.cvc || '',
+    };
+  });
+}, [userInfo?.cards, displayName]);
 
   const browsingHistory = useMemo(() => {
     const items = [];
@@ -526,16 +627,85 @@ const ProfilePage = () => {
     const { name, value } = event.target;
     setCardForm((prev) => ({
       ...prev,
-      [name]: value,
+      [name]:
+        name === 'provider'
+          ? value.toUpperCase()
+          : name === 'cardNumber'
+            ? formatCardInput(value)
+            : name === 'expiry'
+              ? formatExpiryInput(value)
+              : value,
     }));
     setCardFormMessage('');
+    setCardFormError('');
   };
 
-  const handleCardFormSubmit = (event) => {
-    event.preventDefault();
-    setCardFormMessage('Card saving feature is coming soon. Your details were captured locally.');
-    closeAddCardModal();
+const handleCardFormSubmit = async (event) => {
+  event.preventDefault();
+  if (!userInfo?.id) {
+    setCardFormError('Please sign in to save your card.');
+    return;
+  }
+
+  const payload = {
+    name_on_card: cardForm.name.trim(),
+    card_number: cardForm.cardNumber.replace(/\s+/g, ''),
+    cvc: cardForm.cvc.trim(),
+    expiry: cardForm.expiry.trim(),
+    provider: cardForm.provider.toUpperCase(),
   };
+
+  if (!payload.name_on_card || !payload.card_number || !payload.cvc || !payload.expiry || !payload.provider) {
+    setCardFormError('Please complete all card fields.');
+    return;
+  }
+
+  setCardFormSubmitting(true);
+  setCardFormError('');
+
+  try {
+    const method = cardFormMode === 'edit' ? 'PUT' : 'POST';
+    const endpoint =
+      cardFormMode === 'edit'
+        ? `http://localhost:3001/api/users/${userInfo.id}/cards/${cardForm.id}`
+        : `http://localhost:3001/api/users/${userInfo.id}/cards`;
+
+    const response = await fetch(endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to save card.');
+    }
+
+    const savedCard = data.card || data;
+    setUserInfo((prev) => {
+      if (!prev) return prev;
+      const existingCards = Array.isArray(prev.cards) ? prev.cards : [];
+      if (cardFormMode === 'edit') {
+        return {
+          ...prev,
+          cards: existingCards.map((item) => (item.id === savedCard.id ? savedCard : item)),
+        };
+      }
+      return {
+        ...prev,
+        cards: [savedCard, ...existingCards],
+      };
+    });
+
+    setCardFormMessage(cardFormMode === 'edit' ? 'Card updated successfully.' : 'Card saved successfully.');
+    setCardMenuOpen(null);
+    closeAddCardModal();
+  } catch (error) {
+    console.error('Card submit error:', error);
+    setCardFormError(error.message || 'Failed to save card.');
+  } finally {
+    setCardFormSubmitting(false);
+  }
+};
 
   const handleViewOrderDetails = async (orderId) => {
     if (!orderId) return;
@@ -567,22 +737,84 @@ const ProfilePage = () => {
   };
 
   const handleCardAction = (action, card) => {
-    console.log(`${action} triggered for`, card);
+    if (!userInfo?.id) {
+      setCardFormError('You need to be signed in to manage cards.');
+      setCardMenuOpen(null);
+      return;
+    }
+
+    if (action === 'Edit Card') {
+      setCardForm({
+        id: card.id,
+        name: card.name_on_card || '',
+        cardNumber: formatCardInput(card.card_number),
+        cvc: card.cvc || '',
+        expiry: formatExpiryInput(card.expiry),
+        provider: (card.rawProvider || card.provider || 'VISA').toUpperCase(),
+      });
+      setCardFormMode('edit');
+      setCardFormMessage('');
+      setCardFormError('');
+      setIsAddCardModalOpen(true);
+    } else if (action === 'Delete Card') {
+      const confirmDelete =
+        typeof window === 'undefined' ? true : window.confirm('Remove this saved card?');
+      if (!confirmDelete) {
+        setCardMenuOpen(null);
+        return;
+      }
+
+      const deleteCard = async () => {
+        setCardFormSubmitting(true);
+        setCardFormMessage('');
+        setCardFormError('');
+        try {
+          const response = await fetch(`http://localhost:3001/api/users/${userInfo.id}/cards/${card.id}`, {
+            method: 'DELETE',
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.error || 'Failed to delete card.');
+          }
+          setUserInfo((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  cards: (prev.cards || []).filter((item) => item.id !== card.id),
+                }
+              : prev,
+          );
+          setCardFormMessage('Card deleted successfully.');
+        } catch (error) {
+          console.error('Card delete error:', error);
+          setCardFormError(error.message || 'Failed to delete card.');
+        } finally {
+          setCardFormSubmitting(false);
+        }
+      };
+
+      deleteCard();
+    }
+
     setCardMenuOpen(null);
   };
 
   const resetCardForm = () => {
     setCardForm({
+      id: '',
       name: '',
       cardNumber: '',
       cvc: '',
       expiry: '',
-      provider: 'Visa',
+      provider: 'VISA',
     });
+    setCardFormMode('add');
+    setCardFormError('');
   };
 
   const closeAddCardModal = () => {
     setIsAddCardModalOpen(false);
+    setCardFormSubmitting(false);
     resetCardForm();
   };
 
@@ -1142,62 +1374,88 @@ const ProfilePage = () => {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">Payment Option</h3>
                     <button
-                      onClick={() => setIsAddCardModalOpen(true)}
+                      onClick={() => {
+                        resetCardForm();
+                        setCardFormMode('add');
+                        setCardFormMessage('');
+                        setCardFormError('');
+                        setIsAddCardModalOpen(true);
+                      }}
                       className="inline-flex items-center gap-2 text-sm font-semibold text-[#00aeef] hover:text-[#0099d9] transition"
                     >
                       Add Card <FiChevronRight />
                     </button>
                   </div>
+                  {!isAddCardModalOpen && cardFormMessage && (
+                    <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {cardFormMessage}
+                    </div>
+                  )}
+                  {!isAddCardModalOpen && cardFormError && (
+                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                      {cardFormError}
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {paymentCards.map((card) => (
-                      <div
-                        key={card.id}
-                        className={`relative ${cardMenuOpen === card.id ? 'z-10' : ''} overflow-hidden rounded-xl p-5 shadow-lg bg-linear-to-r ${card.gradient} text-white`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="text-xs uppercase tracking-wide opacity-80">Card Number</div>
-                          <button
-                            type="button"
-                            onClick={() => handleCardMenuToggle(card.id)}
-                            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition"
-                            aria-label="Card actions"
-                          >
-                            <FaEllipsisH />
-                          </button>
-                          {cardMenuOpen === card.id && (
-                            <div className="absolute right-4 top-12 bg-white text-gray-700 rounded-md shadow-lg border border-gray-200 w-36 z-10">
-                              <button
-                                type="button"
-                                onClick={() => handleCardAction('Edit Card', card)}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                              >
-                                Edit Card
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleCardAction('Delete Card', card)}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                              >
-                                Delete Card
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-4 text-2xl font-semibold tracking-widest">{card.mask}</div>
-
-                        <div className="mt-6 flex items-center justify-between text-sm">
-                          <div>
-                            <p className="opacity-80">Name on card</p>
-                            <p className="font-semibold text-base">{card.holder}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="opacity-80 uppercase text-xs">Type</p>
-                            <p className="font-semibold text-base">{card.brand}</p>
-                          </div>
-                        </div>
+                    {userCards.length === 0 ? (
+                      <div className="border border-dashed border-gray-300 rounded-xl p-6 text-sm text-gray-500">
+                        You haven't saved any cards yet. Add your primary payment method for faster checkout.
                       </div>
-                    ))}
+                    ) : (
+                      userCards.map((card) => (
+                        <div
+                          key={card.id}
+                          className={`relative ${cardMenuOpen === card.id ? 'z-10' : ''} overflow-hidden rounded-xl p-5 shadow-lg bg-linear-to-r ${card.gradient} text-white`}
+                          onMouseLeave={() => setCardMenuOpen(null)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="text-xs uppercase tracking-wide opacity-80">Card Number</div>
+                            <button
+                              type="button"
+                              onClick={() => handleCardMenuToggle(card.id)}
+                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition"
+                              aria-label="Card actions"
+                            >
+                              <FaEllipsisH />
+                            </button>
+                            {cardMenuOpen === card.id && (
+                              <div className="absolute right-4 top-12 bg-white text-gray-700 rounded-md shadow-lg border border-gray-200 w-36 z-10">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCardAction('Edit Card', card)}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                                >
+                                  Edit Card
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCardAction('Delete Card', card)}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                                >
+                                  Delete Card
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-4 text-2xl font-semibold tracking-widest">{card.mask}</div>
+
+                          <div className="mt-6 flex items-center justify-between text-sm">
+                            <div>
+                              <p className="opacity-80">Name on card</p>
+                              <p className="font-semibold text-base">{card.holder}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="opacity-80 uppercase text-xs">Provider</p>
+                              <p className="font-semibold text-base">{card.provider}</p>
+                              {card.expiry && (
+                                <p className="text-xs opacity-70 mt-1">Exp {card.expiry}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -1420,6 +1678,20 @@ const ProfilePage = () => {
                           {selectedOrderDetails.items.length} Product{selectedOrderDetails.items.length === 1 ? '' : 's'} • Order placed on{' '}
                           <span className="font-semibold text-gray-900">{formatDate(selectedOrderDetails.placedAt)}</span>
                         </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                              ACTIVITY_BADGE_STYLES[selectedOrderDetails.statusBadge] || 'border-blue-200 bg-blue-50 text-blue-600'
+                            }`}
+                          >
+                            {selectedOrderDetails.statusBadge || 'In Progress'}
+                          </span>
+                          {selectedOrderDetails.rawStatus && (
+                            <span className="text-xs text-gray-500 capitalize">
+                              Current status: {selectedOrderDetails.rawStatus.replace(/_/g, ' ')}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1434,21 +1706,12 @@ const ProfilePage = () => {
                     {(() => {
                       const timeline = buildOrderDetailTimeline(selectedOrderDetails.status);
                       const activeIndex = timeline.findIndex((step) => step.current);
-                      const completedIndex = activeIndex >= 0 ? activeIndex : timeline.findIndex((step) => step.completed);
                       const denominator = Math.max(1, timeline.length - 1);
-                      const progressPercent = completedIndex <= 0
-                        ? completedIndex === 0
-                          ? 12
-                          : 0
-                        : Math.min(100, (completedIndex / denominator) * 100);
+                      const normalizedIndex = activeIndex >= 0 ? activeIndex : 0;
+                      const progressPercent = Math.min(100, Math.max(0, (normalizedIndex / denominator) * 100));
                       return (
                         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-                          <p className="text-sm text-gray-600">
-                            Order expected arrival{' '}
-                            <span className="font-semibold text-gray-900">
-                              {formatDate(selectedOrderDetails.expectedDelivery, false)}
-                            </span>
-                          </p>
+                          
                           <div className="mt-6 px-2">
                             <div className="relative h-1 bg-blue-100 rounded-full">
                               <div
@@ -1497,7 +1760,13 @@ const ProfilePage = () => {
                             return (
                               <div
                                 key={entry.id || index}
-                                className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"
+                                className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                                  entry.completed
+                                    ? 'border-emerald-200 bg-emerald-50'
+                                    : entry.current
+                                      ? 'border-blue-200 bg-blue-50'
+                                      : 'border-gray-100 bg-gray-50'
+                                }`}
                               >
                                 <span
                                   className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full border ${
@@ -1509,8 +1778,16 @@ const ProfilePage = () => {
                                   <Icon className="text-sm" />
                                 </span>
                                 <div className="flex-1">
-                                  <p className="text-sm text-gray-800">{entry.label}</p>
-                                  <p className="text-xs text-gray-500 mt-1">{formatDate(entry.timestamp)}</p>
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                    <p className="text-sm text-gray-800">{entry.label}</p>
+                                    <span
+                                      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                                        ACTIVITY_BADGE_STYLES[entry.statusBadge] || 'border-blue-200 bg-blue-50 text-blue-600'
+                                      }`}
+                                    >
+                                      {entry.statusBadge}-
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -1795,64 +2072,89 @@ const ProfilePage = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => setIsAddCardModalOpen(true)}
+                      onClick={() => {
+                        resetCardForm();
+                        setCardFormMode('add');
+                        setCardFormMessage('');
+                        setCardFormError('');
+                        setIsAddCardModalOpen(true);
+                      }}
                       className="inline-flex items-center gap-2 text-sm font-semibold text-[#00aeef] hover:text-[#0099d9] transition"
                     >
                       Add Card <FiChevronRight />
                     </button>
                   </div>
 
+                  {!isAddCardModalOpen && cardFormMessage && (
+                    <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {cardFormMessage}
+                    </div>
+                  )}
+                  {!isAddCardModalOpen && cardFormError && (
+                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                      {cardFormError}
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {paymentCards.map((card) => (
-                      <div
-                        key={card.id}
-                        className={`relative ${cardMenuOpen === card.id ? 'z-10' : ''} overflow-hidden rounded-xl p-5 shadow-lg bg-linear-to-r ${card.gradient} text-white`}
-                        onMouseLeave={() => setCardMenuOpen(null)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="text-xs uppercase tracking-wide opacity-80">Card Number</div>
-                          <button
-                            type="button"
-                            onClick={() => handleCardMenuToggle(card.id)}
-                            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition"
-                            aria-label="Card actions"
-                          >
-                            <FaEllipsisH />
-                          </button>
-                          {cardMenuOpen === card.id && (
-                            <div className="absolute right-4 top-12 bg-white text-gray-700 rounded-md shadow-lg border border-gray-200 w-36 z-10">
-                              <button
-                                type="button"
-                                onClick={() => handleCardAction('Edit Card', card)}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                              >
-                                Edit Card
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleCardAction('Delete Card', card)}
-                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                              >
-                                Delete Card
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-4 text-2xl font-semibold tracking-widest">{card.mask}</div>
-
-                        <div className="mt-6 flex items-center justify-between text-sm">
-                          <div>
-                            <p className="opacity-80">Name on card</p>
-                            <p className="font-semibold text-base">{card.holder}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="opacity-80 uppercase text-xs">Type</p>
-                            <p className="font-semibold text-base">{card.brand}</p>
-                          </div>
-                        </div>
+                    {userCards.length === 0 ? (
+                      <div className="border border-dashed border-gray-300 rounded-xl p-6 text-sm text-gray-500">
+                        You haven't saved any cards yet. Add your primary payment method for faster checkout.
                       </div>
-                    ))}
+                    ) : (
+                      userCards.map((card) => (
+                        <div
+                          key={card.id}
+                          className={`relative ${cardMenuOpen === card.id ? 'z-10' : ''} overflow-hidden rounded-xl p-5 shadow-lg bg-linear-to-r ${card.gradient} text-white`}
+                          onMouseLeave={() => setCardMenuOpen(null)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="text-xs uppercase tracking-wide opacity-80">Card Number</div>
+                            <button
+                              type="button"
+                              onClick={() => handleCardMenuToggle(card.id)}
+                              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition"
+                              aria-label="Card actions"
+                            >
+                              <FaEllipsisH />
+                            </button>
+                            {cardMenuOpen === card.id && (
+                              <div className="absolute right-4 top-12 bg-white text-gray-700 rounded-md shadow-lg border border-gray-200 w-36 z-10">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCardAction('Edit Card', card)}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                                >
+                                  Edit Card
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCardAction('Delete Card', card)}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                                >
+                                  Delete Card
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-4 text-2xl font-semibold tracking-widest">{card.mask}</div>
+
+                          <div className="mt-6 flex items-center justify-between text-sm">
+                            <div>
+                              <p className="opacity-80">Name on card</p>
+                              <p className="font-semibold text-base">{card.holder}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="opacity-80 uppercase text-xs">Provider</p>
+                              <p className="font-semibold text-base">{card.provider}</p>
+                              {card.expiry && (
+                                <p className="text-xs opacity-70 mt-1">Exp {card.expiry}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -1918,7 +2220,9 @@ const ProfilePage = () => {
                     />
                     <div className="relative w-full max-w-md bg-white rounded-lg shadow-2xl border border-gray-200 p-6 space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-base font-semibold text-gray-900">Add New Card</h4>
+                        <h4 className="text-base font-semibold text-gray-900">
+                          {cardFormMode === 'edit' ? 'Edit Card' : 'Add New Card'}
+                        </h4>
                         <button
                           type="button"
                           onClick={closeAddCardModal}
@@ -1928,6 +2232,12 @@ const ProfilePage = () => {
                           ×
                         </button>
                       </div>
+
+                      {cardFormError && (
+                        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                          {cardFormError}
+                        </div>
+                      )}
 
                       <form className="space-y-3" onSubmit={handleCardFormSubmit}>
                         <div>
@@ -1961,6 +2271,26 @@ const ProfilePage = () => {
                             inputMode="numeric"
                             required
                           />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="modalProvider">
+                            Card Provider
+                          </label>
+                          <select
+                            id="modalProvider"
+                            name="provider"
+                            value={cardForm.provider}
+                            onChange={handleCardFormChange}
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef] bg-white"
+                            required
+                          >
+                            <option value="VISA">VISA</option>
+                            <option value="MASTERCARD">MasterCard</option>
+                            <option value="EASYPAISA">EasyPaisa</option>
+                            <option value="NAYAPAY">NayaPay</option>
+                            <option value="SADAPAY">SadaPay</option>
+                          </select>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -1999,9 +2329,14 @@ const ProfilePage = () => {
 
                         <button
                           type="submit"
-                          className="w-full inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#00aeef] text-white font-semibold hover:bg-[#0099d9] transition"
+                          disabled={cardFormSubmitting}
+                          className="w-full inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#00aeef] text-white font-semibold hover:bg-[#0099d9] transition disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          Add Card
+                          {cardFormSubmitting
+                            ? 'Saving...'
+                            : cardFormMode === 'edit'
+                              ? 'Save Changes'
+                              : 'Add Card'}
                         </button>
                       </form>
                     </div>

@@ -169,6 +169,34 @@ const CheckoutPage = () => {
         return;
       }
 
+      const fullName = `${billingInfo.firstName} ${billingInfo.lastName}`.trim();
+
+      const shippingAddressPayload = {
+        name: fullName || undefined,
+        first_name: billingInfo.firstName || undefined,
+        last_name: billingInfo.lastName || undefined,
+        line1: billingInfo.address || undefined,
+        city: billingInfo.city || undefined,
+        state: billingInfo.region || undefined,
+        country: billingInfo.country || undefined,
+        postal_code: billingInfo.zipCode || undefined,
+        phone: billingInfo.phone || undefined,
+        email: billingInfo.email || undefined,
+      };
+
+      const billingAddressPayload = {
+        name: fullName || undefined,
+        first_name: billingInfo.firstName || undefined,
+        last_name: billingInfo.lastName || undefined,
+        line1: billingInfo.address || undefined,
+        city: billingInfo.city || undefined,
+        state: billingInfo.region || undefined,
+        country: billingInfo.country || undefined,
+        postal_code: billingInfo.zipCode || undefined,
+        phone: billingInfo.phone || undefined,
+        email: billingInfo.email || undefined,
+      };
+
       const response = await fetch('http://localhost:3001/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,24 +209,20 @@ const CheckoutPage = () => {
             shipping: 0,
             total,
           },
-          shippingAddress: [
-            billingInfo.address,
-            billingInfo.city,
-            billingInfo.region,
-            billingInfo.country,
-          ]
-            .filter(Boolean)
-            .join(', '),
-          billingAddress: [
-            billingInfo.address,
-            billingInfo.city,
-            billingInfo.region,
-            billingInfo.country,
-          ]
-            .filter(Boolean)
-            .join(', '),
+          shippingAddress: shippingAddressPayload,
+          billingAddress: billingAddressPayload,
           paymentMethod,
           orderNotes,
+          customer: {
+            firstName: billingInfo.firstName,
+            lastName: billingInfo.lastName,
+            name: fullName,
+            email: billingInfo.email,
+            phone: billingInfo.phone,
+          },
+          customerName: fullName,
+          customerEmail: billingInfo.email,
+          customerPhone: billingInfo.phone,
           items: cartItems.map((item) => ({
             id: item.id,
             name: item.name,

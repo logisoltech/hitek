@@ -84,6 +84,30 @@ const updateUserTotals = async (userId, delta) => {
   }
 };
 
+const parseAddressObject = (input) => {
+  if (!input) return null;
+
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    return input;
+  }
+
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (error) {
+      // Ignore parse errors; treat as unstructured string
+    }
+  }
+
+  return null;
+};
+
+const firstNonEmpty = (...candidates) =>
+  candidates.find((value) => typeof value === 'string' && value.trim())?.trim() || null;
+
 router.post('/', async (req, res) => {
   try {
     const {
@@ -95,6 +119,14 @@ router.post('/', async (req, res) => {
       paymentMethod,
       items = [],
       orderNotes,
+      customer = {},
+      customerName,
+      customerEmail,
+      customerPhone,
+      firstName,
+      lastName,
+      phone,
+      phoneNumber,
     } = req.body;
 
     if (!userId || !items.length) {
@@ -103,31 +135,114 @@ router.post('/', async (req, res) => {
 
     const normalizedStatus = normalizeStatus(status);
 
+    const shippingAddressObject = parseAddressObject(shippingAddress);
+    const billingAddressObject = parseAddressObject(billingAddress);
+
+    const resolvedFirstName = firstNonEmpty(
+      customer?.firstName,
+      customer?.firstname,
+      firstName,
+      shippingAddressObject?.first_name,
+      billingAddressObject?.first_name,
+    );
+
+    const resolvedLastName = firstNonEmpty(
+      customer?.lastName,
+      customer?.lastname,
+      lastName,
+      shippingAddressObject?.last_name,
+      billingAddressObject?.last_name,
+    );
+
+    const combinedName = (() => {
+      const parts = [resolvedFirstName, resolvedLastName].filter(Boolean);
+      return parts.length ? parts.join(' ') : null;
+    })();
+
+    const resolvedCustomerName = firstNonEmpty(
+      combinedName,
+      customer?.name,
+      customerName,
+      shippingAddressObject?.name,
+      billingAddressObject?.name,
+    );
+
+    const resolvedCustomerEmail = firstNonEmpty(
+      customer?.email,
+      customerEmail,
+      shippingAddressObject?.email,
+      billingAddressObject?.email,
+    );
+
+    const resolvedCustomerPhone = firstNonEmpty(
+      customer?.phone,
+      customer?.phoneNumber,
+      customer?.phone_number,
+      customerPhone,
+      phone,
+      phoneNumber,
+      shippingAddressObject?.phone,
+      billingAddressObject?.phone,
+    );
+
+    const insertPayload = {
+      user_id: userId,
+      status: normalizedStatus,
+      subtotal: totals.subtotal || 0,
+      tax: totals.tax || 0,
+      shipping: totals.shipping || 0,
+      total: totals.total || 0,
+      shipping_address: shippingAddress || null,
+      billing_address: billingAddress || null,
+      payment_method: paymentMethod || null,
+      customer_name: resolvedCustomerName,
+      customer_email: resolvedCustomerEmail,
+      customer_phone: resolvedCustomerPhone,
+    };
+
+    if (typeof orderNotes === 'string' && orderNotes.trim()) {
+      insertPayload.order_notes = orderNotes.trim();
+    }
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .insert({
-        user_id: userId,
-        status: normalizedStatus,
-        subtotal: totals.subtotal || 0,
-        tax: totals.tax || 0,
-        shipping: totals.shipping || 0,
-        total: totals.total || 0,
-        shipping_address: shippingAddress || null,
-        billing_address: billingAddress || null,
-        payment_method: paymentMethod || null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
     if (orderError) throw orderError;
 
-    const orderItems = items.map((item) => ({
-      order_id: order.id,
-      product_id: item.productId || item.id || null,
-      name: item.name,
-      price: item.price || 0,
-      quantity: item.quantity || 1,
-    }));
+    const orderItems = items.map((item) => {
+      const rawProductId = item.productId ?? item.id ?? null;
+      let resolvedProductId = null;
+
+      if (typeof rawProductId === 'number' && Number.isFinite(rawProductId)) {
+        resolvedProductId = rawProductId;
+      } else if (typeof rawProductId === 'string') {
+        const trimmed = rawProductId.trim();
+        const directNumber = Number(trimmed);
+        if (Number.isFinite(directNumber)) {
+          resolvedProductId = directNumber;
+        } else {
+          const match = trimmed.match(/(\d+)/);
+          if (match) {
+            const parsed = Number(match[1]);
+            if (Number.isFinite(parsed)) {
+              resolvedProductId = parsed;
+            }
+          }
+        }
+      }
+
+      return {
+        order_id: order.id,
+        product_id: resolvedProductId,
+        name: item.name || item.title || 'Product',
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 1),
+        metadata: item.metadata || null,
+      };
+    });
 
     const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
     if (itemsError) throw itemsError;
