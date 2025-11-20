@@ -127,6 +127,7 @@ const LAPTOP_SPEC_FIELDS = [
   { id: 'operatingSystem', label: 'Operating System', sourceKey: 'os', placeholder: 'macOS Sonoma 14' },
   { id: 'microphone', label: 'Microphone', sourceKey: 'mic', placeholder: 'Built-In HD' },
   { id: 'battery', label: 'Battery', sourceKey: 'battery', placeholder: 'Up to 8 hours' },
+  { id: 'warranty', label: 'Warranty', sourceKey: 'warranty', placeholder: '1 year limited warranty' },
 ];
 
 const PRINTER_SPEC_FIELDS = [
@@ -137,6 +138,7 @@ const PRINTER_SPEC_FIELDS = [
   { id: 'dimensions', label: 'Dimensions', sourceKey: 'dimensions', placeholder: '425.2 x 304.1 x 149.1 mm' },
   { id: 'weight', label: 'Weight', sourceKey: 'weight', placeholder: '3.42 kg' },
   { id: 'power', label: 'Power', sourceKey: 'power', placeholder: '220 to 240 VAC (± 10%), 50/60 Hz (± 3Hz)' },
+  { id: 'warranty', label: 'Warranty', sourceKey: 'warranty', placeholder: '1 year limited warranty' },
   { id: 'resolution', label: 'Resolution', sourceKey: 'resolution', placeholder: 'Up to 1200 DPI' },
   { id: 'duplex', label: 'Duplex', sourceKey: 'duplex', placeholder: 'Yes / No' },
   { id: 'copyFeature', label: 'Copy Feature', sourceKey: 'copyfeature', placeholder: 'Yes / No' },
@@ -557,8 +559,13 @@ const CmsProductsPage = () => {
               onClick={() => window.location.href = '/cms/products/add-product'}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-linear-to-r from-[#38bdf8] to-[#6366f1] hover:from-[#0ea5e9] hover:to-[#4338ca] text-white text-sm font-semibold rounded-lg transition shadow-lg shadow-[#6366f1]/30"
             >
-              
               Add Product
+            </button>
+            <button
+              onClick={() => window.location.href = '/cms/products/bulk-add-product'}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-linear-to-r from-[#38bdf8] to-[#6366f1] hover:from-[#0ea5e9] hover:to-[#4338ca] text-white text-sm font-semibold rounded-lg transition shadow-lg shadow-[#0ea5e9]/30"
+            >
+              Bulk Add
             </button>
           </div>
         </header>

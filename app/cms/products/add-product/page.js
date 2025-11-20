@@ -47,6 +47,7 @@ const laptopSpecs = [
   { id: 'operatingSystem', label: 'Operating System', placeholder: 'macOS Sonoma 14' },
   { id: 'microphone', label: 'Microphone', placeholder: 'Built-In HD' },
   { id: 'battery', label: 'Battery', placeholder: 'Up to 8 hours' },
+  { id: 'warranty', label: 'Warranty', placeholder: '1 year limited warranty' },
 ];
 
 const printerSpecs = [
@@ -57,6 +58,7 @@ const printerSpecs = [
   { id: 'dimensions', label: 'Dimensions', placeholder: '425.2 x 304.1 x 149.1 mm' },
   { id: 'weight', label: 'Weight', placeholder: '3.42 kg' },
   { id: 'power', label: 'Power', placeholder: '220 to 240 VAC (± 10%), 50/60 Hz (± 3Hz)' },
+  { id: 'warranty', label: 'Warranty', placeholder: '1 year limited warranty' },
   { id: 'resolution', label: 'Resolution', placeholder: 'Up to 1200 DPI' },
   { id: 'duplex', label: 'Duplex', placeholder: 'Yes / No' },
   { id: 'copyFeature', label: 'Copy Feature', placeholder: 'Yes / No' },

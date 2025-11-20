@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const { parse: parseCsv } = require('csv-parse/sync');
 const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
@@ -40,6 +41,7 @@ const LAPTOP_SPEC_MAP = {
   operatingSystem: 'os',
   microphone: 'mic',
   battery: 'battery',
+  warranty: 'warranty',
 };
 
 const PRINTER_SPEC_MAP = {
@@ -52,12 +54,51 @@ const PRINTER_SPEC_MAP = {
   dimensions: 'dimensions',
   weight: 'weight',
   power: 'power',
+  warranty: 'warranty',
   resolution: 'resolution',
   duplex: 'duplex',
   copyFeature: 'copyfeature',
   scanFeature: 'scanfeature',
   wireless: 'wireless',
 };
+
+const GENERAL_PRODUCT_COLUMNS = [
+  'name',
+  'brand',
+  'model',
+  'series',
+  'sku',
+  'price',
+  'stock',
+  'description',
+  'image',
+  'image_urls',
+];
+
+const LAPTOP_ALLOWED_COLUMNS = [
+  ...GENERAL_PRODUCT_COLUMNS,
+  ...Object.values(LAPTOP_SPEC_MAP),
+];
+
+const PRINTER_ALLOWED_COLUMNS = [
+  ...GENERAL_PRODUCT_COLUMNS,
+  ...Object.values(PRINTER_SPEC_MAP),
+];
+
+const LAPTOP_REQUIRED_COLUMNS = ['name', 'brand', 'price'];
+const PRINTER_REQUIRED_COLUMNS = ['name', 'brand', 'price'];
+
+const buildColumnLookup = (columnList) => {
+  const set = new Set(columnList);
+  const lowerCaseMap = columnList.reduce((acc, column) => {
+    acc[column.toLowerCase()] = column;
+    return acc;
+  }, {});
+  return { set, lowerCaseMap };
+};
+
+const LAPTOP_COLUMN_LOOKUP = buildColumnLookup(LAPTOP_ALLOWED_COLUMNS);
+const PRINTER_COLUMN_LOOKUP = buildColumnLookup(PRINTER_ALLOWED_COLUMNS);
 
 const normalizeString = (value) => {
   if (value === undefined || value === null) return '';
@@ -111,6 +152,91 @@ const parseExistingImages = (raw) => {
     return [];
   }
   return [];
+};
+
+const parseImageUrls = (raw) => {
+  if (raw === undefined || raw === null) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((value) => (typeof value === 'string' ? value.trim() : String(value || '').trim()))
+      .filter((value) => value);
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((value) => (typeof value === 'string' ? value.trim() : String(value || '').trim()))
+          .filter((value) => value);
+      }
+    } catch (error) {
+      // fall through to delimiter split
+    }
+    return trimmed
+      .split(/[;,|]/)
+      .map((value) => value.trim())
+      .filter((value) => value);
+  }
+
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return [String(raw)];
+  }
+
+  return [];
+};
+
+const coerceCsvValue = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : null;
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  const stringValue = String(value).trim();
+  return stringValue === '' ? null : stringValue;
+};
+
+const sanitizeCsvRow = (row, columnLookup) => {
+  const sanitized = {};
+  Object.entries(row || {}).forEach(([rawKey, rawValue]) => {
+    if (!rawKey) return;
+    const trimmedKey = rawKey.trim();
+    if (!trimmedKey) return;
+
+    const directMatch = columnLookup.set.has(trimmedKey) ? trimmedKey : null;
+    const lookupMatch = columnLookup.lowerCaseMap[trimmedKey.toLowerCase()];
+    const column = directMatch || lookupMatch;
+    if (!column) return;
+
+    if (column === 'image_urls') {
+      const urls = parseImageUrls(rawValue);
+      if (urls.length) {
+        sanitized[column] = urls;
+      }
+      return;
+    }
+
+    const value = coerceCsvValue(rawValue);
+    if (value === null) return;
+    sanitized[column] = value;
+  });
+  return sanitized;
+};
+
+const REQUIRED_COLUMNS_LOOKUP = {
+  laptop: LAPTOP_REQUIRED_COLUMNS,
+  printer: PRINTER_REQUIRED_COLUMNS,
 };
 
 const uploadImages = async (category, files) => {
@@ -222,6 +348,133 @@ router.post('/', upload.array('images', 10), async (req, res) => {
   } catch (err) {
     console.error('Unexpected error creating product:', err);
     res.status(500).json({ error: err?.message || 'Internal server error.' });
+  }
+});
+
+router.post('/bulk/csv', upload.single('file'), async (req, res) => {
+  try {
+    const category = normalizeString(req.body.category).toLowerCase();
+    if (!['laptop', 'printer'].includes(category)) {
+      return res.status(400).json({ error: 'Invalid or missing category. Use laptop or printer.' });
+    }
+
+    if (!req.file || !req.file.buffer || !req.file.buffer.length) {
+      return res.status(400).json({ error: 'Please upload a CSV file.' });
+    }
+
+    let records;
+    try {
+      const csvString = req.file.buffer.toString('utf-8');
+      records = parseCsv(csvString, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+      });
+    } catch (error) {
+      return res.status(400).json({
+        error: `Unable to parse CSV file: ${error.message || 'Invalid format.'}`,
+      });
+    }
+
+    if (!Array.isArray(records) || !records.length) {
+      return res.status(400).json({ error: 'CSV file does not contain any rows.' });
+    }
+
+    const columnLookup = category === 'printer' ? PRINTER_COLUMN_LOOKUP : LAPTOP_COLUMN_LOOKUP;
+    const requiredColumns = REQUIRED_COLUMNS_LOOKUP[category] || [];
+    const tableName = category === 'printer' ? 'printers' : 'laptops';
+
+    const sanitizedRows = [];
+    const rowErrors = [];
+
+    records.forEach((row, index) => {
+      const rowNumber = index + 2; // account for header row
+      const sanitized = sanitizeCsvRow(row, columnLookup);
+      const displayName = sanitized.name || row.name || row.model || null;
+
+      if (Array.isArray(sanitized.image_urls) && sanitized.image_urls.length) {
+        if (!sanitized.image || typeof sanitized.image !== 'string' || !sanitized.image.trim()) {
+          sanitized.image = sanitized.image_urls[0];
+        }
+      }
+
+      if (!Object.keys(sanitized).length) {
+        rowErrors.push({
+          row: rowNumber,
+          name: displayName,
+          error: 'Row does not contain any recognized columns.',
+        });
+        return;
+      }
+
+      const missingRequired = requiredColumns.filter((column) => !sanitized[column]);
+      if (missingRequired.length) {
+        rowErrors.push({
+          row: rowNumber,
+          name: displayName,
+          error: `Missing required columns: ${missingRequired.join(', ')}`,
+        });
+        return;
+      }
+
+      sanitizedRows.push({
+        payload: sanitized,
+        rowNumber,
+        displayName,
+      });
+    });
+
+    if (!sanitizedRows.length) {
+      return res.status(400).json({
+        error: 'No valid rows found in CSV.',
+        details: rowErrors,
+      });
+    }
+
+    const insertedRows = [];
+    const insertionErrors = [];
+
+    for (const row of sanitizedRows) {
+      try {
+        const { data, error } = await supabase
+          .from(tableName)
+          .insert(row.payload)
+          .select('*')
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        insertedRows.push({
+          row: row.rowNumber,
+          name: row.displayName || data?.name || null,
+          record: data,
+        });
+      } catch (error) {
+        insertionErrors.push({
+          row: row.rowNumber,
+          name: row.displayName,
+          error: error?.message || error?.details || 'Failed to insert row.',
+        });
+      }
+    }
+
+    return res.json({
+      summary: {
+        category,
+        attempted: records.length,
+        processed: sanitizedRows.length,
+        inserted: insertedRows.length,
+        failed: rowErrors.length + insertionErrors.length,
+      },
+      inserted: insertedRows,
+      rowValidationErrors: rowErrors,
+      insertionErrors,
+    });
+  } catch (error) {
+    console.error('Bulk CSV import error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to import CSV.' });
   }
 });
 
