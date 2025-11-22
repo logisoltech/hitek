@@ -263,6 +263,34 @@ const ProductPage = () => {
     }
   };
 
+  const isPrinter = (product?.type || initialType) === 'printer';
+  const isLaptop = !isPrinter;
+
+  const memoryOptions = useMemo(() => {
+    if (!product || isPrinter) return [];
+    const value = sanitizeSpecValue(product.memory);
+    if (value) return [value];
+    return DEFAULT_MEMORY_OPTIONS;
+  }, [product, isPrinter]);
+
+  const displayOptions = useMemo(() => {
+    if (!product || isPrinter) return [];
+    const value = sanitizeSpecValue(product.display);
+    if (value) return [value];
+    return DEFAULT_DISPLAY_OPTIONS;
+  }, [product, isPrinter]);
+
+  const storageOptions = useMemo(() => {
+    if (!product || isPrinter) return [];
+    const value = sanitizeSpecValue(product.storage);
+    if (value) return [value];
+    return DEFAULT_STORAGE_OPTIONS;
+  }, [product, isPrinter]);
+
+  const effectiveMemory = selectedMemory || memoryOptions[0] || '';
+  const effectiveDisplay = selectedSize || displayOptions[0] || '';
+  const effectiveStorage = selectedStorage || storageOptions[0] || '';
+
   if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${openSans.className}`}>
@@ -291,34 +319,6 @@ const ProductPage = () => {
       </div>
     );
   }
-
-  const isPrinter = (product?.type || initialType) === 'printer';
-  const isLaptop = !isPrinter;
-
-  const memoryOptions = useMemo(() => {
-    if (!product || isPrinter) return [];
-    const value = sanitizeSpecValue(product.memory);
-    if (value) return [value];
-    return DEFAULT_MEMORY_OPTIONS;
-  }, [product, isPrinter]);
-
-  const displayOptions = useMemo(() => {
-    if (!product || isPrinter) return [];
-    const value = sanitizeSpecValue(product.display);
-    if (value) return [value];
-    return DEFAULT_DISPLAY_OPTIONS;
-  }, [product, isPrinter]);
-
-  const storageOptions = useMemo(() => {
-    if (!product || isPrinter) return [];
-    const value = sanitizeSpecValue(product.storage);
-    if (value) return [value];
-    return DEFAULT_STORAGE_OPTIONS;
-  }, [product, isPrinter]);
-
-  const effectiveMemory = selectedMemory || memoryOptions[0] || '';
-  const effectiveDisplay = selectedSize || displayOptions[0] || '';
-  const effectiveStorage = selectedStorage || storageOptions[0] || '';
 
   if (!product) {
     return null;
