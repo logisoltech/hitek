@@ -94,7 +94,7 @@ const CheckoutPage = () => {
           return;
         }
 
-        const response = await fetch(`http://localhost:3001/api/users/${parsed.id}`);
+        const response = await fetch(`https://hitek-server.onrender.com/api/users/${parsed.id}`);
         if (!response.ok) {
           throw new Error('Failed to load billing information.');
         }
@@ -197,7 +197,7 @@ const CheckoutPage = () => {
         email: billingInfo.email || undefined,
       };
 
-      const response = await fetch('http://localhost:3001/api/orders', {
+      const response = await fetch('https://hitek-server.onrender.com/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

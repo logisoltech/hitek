@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -237,7 +237,7 @@ const generateActivity = (order) => {
   }));
 };
 
-const OrderDetailsPage = () => {
+const OrderDetailsPageContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId');
@@ -257,7 +257,7 @@ const OrderDetailsPage = () => {
       try {
         setLoading(true);
         setError('');
-        const response = await fetch(`http://localhost:3001/api/orders/${orderId}`);
+      const response = await fetch(`https://hitek-server.onrender.com/api/orders/${orderId}`);
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error('Order not found.');
@@ -300,21 +300,21 @@ const OrderDetailsPage = () => {
 
   const productCountLabel = order ? String(order.items.length || 0).padStart(2, '0') : '00';
 
-const activeNavLabel = 'Order History';
+  const activeNavLabel = 'Order History';
 
-const handleNavItemClick = (item, routerInstance) => {
-  if (item.label === 'Log out') {
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem('user');
-      window.location.href = '/';
+  const handleNavItemClick = (item, routerInstance) => {
+    if (item.label === 'Log out') {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('user');
+        window.location.href = '/';
+      }
+      return;
     }
-    return;
-  }
 
-  if (item.href) {
-    routerInstance.push(item.href);
-  }
-};
+    if (item.href) {
+      routerInstance.push(item.href);
+    }
+  };
 
   const handleBack = () => {
     router.back();
@@ -605,6 +605,23 @@ const handleNavItemClick = (item, routerInstance) => {
         )}
       </div>
     </div>
+  );
+};
+
+const OrderDetailsPage = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-600">
+          <div className="flex flex-col items-center gap-3">
+            <FiRefreshCw className="text-2xl animate-spin" />
+            <p className="text-sm font-semibold">Loading order details…</p>
+          </div>
+        </div>
+      }
+    >
+      <OrderDetailsPageContent />
+    </Suspense>
   );
 };
 

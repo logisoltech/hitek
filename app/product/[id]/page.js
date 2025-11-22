@@ -116,7 +116,7 @@ const ProductPage = () => {
       try {
         let endpointType = initialType;
         const buildUrl = (type) =>
-          `http://localhost:3001/api/${type === 'printer' ? 'printers' : 'laptops'}/${productId}`;
+          `https://hitek-server.onrender.com/api/${type === 'printer' ? 'printers' : 'laptops'}/${productId}`;
 
         let response = await fetch(buildUrl(endpointType));
 

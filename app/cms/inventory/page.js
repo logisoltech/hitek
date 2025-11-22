@@ -97,8 +97,8 @@ const CmsInventoryPage = () => {
         setLoading(true);
         setError('');
         const [laptopsRes, printersRes] = await Promise.all([
-          fetch('http://localhost:3001/api/laptops'),
-          fetch('http://localhost:3001/api/printers'),
+          fetch('https://hitek-server.onrender.com/api/laptops'),
+          fetch('https://hitek-server.onrender.com/api/printers'),
         ]);
 
         if (!laptopsRes.ok) throw new Error('Failed to load laptops');
@@ -162,7 +162,7 @@ const CmsInventoryPage = () => {
     try {
       const endpoint = stockTarget.type === 'printer' ? 'printers' : 'laptops';
       const response = await fetch(
-        `http://localhost:3001/api/${endpoint}/${stockTarget.id}/stock`,
+        `https://hitek-server.onrender.com/api/${endpoint}/${stockTarget.id}/stock`,
         {
           method: 'PATCH',
           headers: {

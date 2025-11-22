@@ -49,7 +49,7 @@ const BulkAddProductsPage = () => {
       formData.append('category', category);
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:3001/api/products/bulk/csv', {
+      const response = await fetch('https://hitek-server.onrender.com/api/products/bulk/csv', {
         method: 'POST',
         body: formData,
       });

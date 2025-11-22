@@ -122,8 +122,8 @@ export default function AllProducts() {
       setFetchError('');
 
       const [laptopsResult, printersResult] = await Promise.all([
-        fetchCategory('http://localhost:3001/api/laptops', 'laptop'),
-        fetchCategory('http://localhost:3001/api/printers', 'printer'),
+        fetchCategory('https://hitek-server.onrender.com/api/laptops', 'laptop'),
+        fetchCategory('https://hitek-server.onrender.com/api/printers', 'printer'),
       ]);
 
       const combined = [...laptopsResult.data, ...printersResult.data];

@@ -60,7 +60,7 @@ const CmsCustomersPage = () => {
       try {
         setLoading(true);
         setError('');
-        const response = await fetch('http://localhost:3001/api/users');
+        const response = await fetch('https://hitek-server.onrender.com/api/users');
         if (!response.ok) throw new Error('Failed to load customers');
         const data = await response.json();
         const normalized = Array.isArray(data)

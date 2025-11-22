@@ -60,7 +60,7 @@ const SignInPage = () => {
 
       // Try backend API login
       try {
-        const response = await fetch('http://localhost:3001/api/auth/login', {
+        const response = await fetch('https://hitek-server.onrender.com/api/auth/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ const SignInPage = () => {
       // Call backend API for registration
       let response;
       try {
-        response = await fetch('http://localhost:3001/api/auth/register', {
+        response = await fetch('https://hitek-server.onrender.com/api/auth/register', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -229,7 +229,7 @@ const SignInPage = () => {
       // Call backend API to update user with shipping details
       let response;
       try {
-        response = await fetch(`http://localhost:3001/api/users/${userId}/shipping`, {
+        response = await fetch(`https://hitek-server.onrender.com/api/users/${userId}/shipping`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

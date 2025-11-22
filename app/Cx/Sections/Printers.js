@@ -61,7 +61,7 @@ const Printers = () => {
       setLoading(true);
       setError('');
       try {
-        const response = await fetch('http://localhost:3001/api/printers');
+        const response = await fetch('https://hitek-server.onrender.com/api/printers');
         if (!response.ok) {
           throw new Error('Failed to load printers.');
         }

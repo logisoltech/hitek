@@ -183,7 +183,7 @@ const CmsAddProductPage = () => {
         formData.append('images', item.file);
       });
 
-      const response = await fetch('http://localhost:3001/api/products', {
+      const response = await fetch('https://hitek-server.onrender.com/api/products', {
         method: 'POST',
         body: formData,
       });

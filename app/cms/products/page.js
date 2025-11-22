@@ -206,8 +206,8 @@ const CmsProductsPage = () => {
         setLoading(true);
         setError('');
         const [laptopsRes, printersRes] = await Promise.all([
-          fetch('http://localhost:3001/api/laptops'),
-          fetch('http://localhost:3001/api/printers'),
+          fetch('https://hitek-server.onrender.com/api/laptops'),
+          fetch('https://hitek-server.onrender.com/api/printers'),
         ]);
 
         if (!laptopsRes.ok) throw new Error('Failed to load laptops');
@@ -309,7 +309,7 @@ const CmsProductsPage = () => {
 
     try {
       const endpoint = product.type === 'printer' ? 'printers' : 'laptops';
-      const response = await fetch(`http://localhost:3001/api/${endpoint}/${product.id}`);
+      const response = await fetch(`https://hitek-server.onrender.com/api/${endpoint}/${product.id}`);
       if (!response.ok) {
         throw new Error('Failed to load product details.');
       }
@@ -495,7 +495,7 @@ const CmsProductsPage = () => {
       });
 
       const categorySlug = editTarget.type === 'printer' ? 'printer' : 'laptop';
-      const response = await fetch(`http://localhost:3001/api/products/${categorySlug}/${editTarget.id}`, {
+      const response = await fetch(`https://hitek-server.onrender.com/api/products/${categorySlug}/${editTarget.id}`, {
         method: 'PATCH',
         body: formData,
       });

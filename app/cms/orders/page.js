@@ -267,7 +267,7 @@ const CmsOrdersPage = () => {
       try {
         setLoading(true);
         setError('');
-        const response = await fetch('http://localhost:3001/api/orders');
+        const response = await fetch('https://hitek-server.onrender.com/api/orders');
         if (!response.ok) throw new Error('Failed to load orders');
         const data = await response.json();
         const normalized = Array.isArray(data)
@@ -334,7 +334,7 @@ const CmsOrdersPage = () => {
     setDetailStatus(summarySanitized?.status || 'pending');
 
     try {
-      const response = await fetch(`http://localhost:3001/api/orders/${orderSummary.id}`);
+      const response = await fetch(`https://hitek-server.onrender.com/api/orders/${orderSummary.id}`);
       if (!response.ok) {
         throw new Error('Failed to load order details.');
       }
@@ -367,7 +367,7 @@ const CmsOrdersPage = () => {
     setDetailMessage('');
 
     try {
-      const response = await fetch(`http://localhost:3001/api/orders/${detailOrder.id}`, {
+      const response = await fetch(`https://hitek-server.onrender.com/api/orders/${detailOrder.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus }),
