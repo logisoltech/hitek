@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -12,6 +12,16 @@ import Navbar from '../../Cx/Layout/Navbar';
 import Footer from '../../Cx/Layout/Footer';
 import { openSans } from '../../Cx/Font/font';
 import { useCart } from '../../Cx/Providers/CartProvider';
+
+const DEFAULT_MEMORY_OPTIONS = ['8GB Unified Memory', '16GB Unified Memory', '24GB Unified Memory'];
+const DEFAULT_DISPLAY_OPTIONS = ['13-inch Retina Display', '14-inch Liquid Retina XDR', '16-inch Liquid Retina XDR'];
+const DEFAULT_STORAGE_OPTIONS = ['256GB SSD', '512GB SSD', '1TB SSD', '2TB SSD'];
+
+const sanitizeSpecValue = (value) => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  return String(value).trim();
+};
 
 const ProductPage = () => {
   const params = useParams();
@@ -26,9 +36,9 @@ const ProductPage = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState('space-gray');
-  const [selectedMemory, setSelectedMemory] = useState('8GB');
-  const [selectedSize, setSelectedSize] = useState('13-inch');
-  const [selectedStorage, setSelectedStorage] = useState('256GB');
+  const [selectedMemory, setSelectedMemory] = useState('');
+  const [selectedSize, setSelectedSize] = useState('');
+  const [selectedStorage, setSelectedStorage] = useState('');
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -186,6 +196,18 @@ const ProductPage = () => {
           images,
         };
         setProduct(normalized);
+        if (normalized.type === 'printer') {
+          setSelectedMemory('');
+          setSelectedSize('');
+          setSelectedStorage('');
+        } else {
+          const memoryValue = sanitizeSpecValue(normalized.memory);
+          const displayValue = sanitizeSpecValue(normalized.display);
+          const storageValue = sanitizeSpecValue(normalized.storage);
+          setSelectedMemory(memoryValue || DEFAULT_MEMORY_OPTIONS[0]);
+          setSelectedSize(displayValue || DEFAULT_DISPLAY_OPTIONS[0]);
+          setSelectedStorage(storageValue || DEFAULT_STORAGE_OPTIONS[0]);
+        }
       } catch (err) {
         console.error('Error fetching product details:', err);
         setError(err.message || 'Failed to load product details.');
@@ -270,6 +292,34 @@ const ProductPage = () => {
     );
   }
 
+  const isPrinter = (product?.type || initialType) === 'printer';
+  const isLaptop = !isPrinter;
+
+  const memoryOptions = useMemo(() => {
+    if (!product || isPrinter) return [];
+    const value = sanitizeSpecValue(product.memory);
+    if (value) return [value];
+    return DEFAULT_MEMORY_OPTIONS;
+  }, [product, isPrinter]);
+
+  const displayOptions = useMemo(() => {
+    if (!product || isPrinter) return [];
+    const value = sanitizeSpecValue(product.display);
+    if (value) return [value];
+    return DEFAULT_DISPLAY_OPTIONS;
+  }, [product, isPrinter]);
+
+  const storageOptions = useMemo(() => {
+    if (!product || isPrinter) return [];
+    const value = sanitizeSpecValue(product.storage);
+    if (value) return [value];
+    return DEFAULT_STORAGE_OPTIONS;
+  }, [product, isPrinter]);
+
+  const effectiveMemory = selectedMemory || memoryOptions[0] || '';
+  const effectiveDisplay = selectedSize || displayOptions[0] || '';
+  const effectiveStorage = selectedStorage || storageOptions[0] || '';
+
   if (!product) {
     return null;
   }
@@ -287,8 +337,7 @@ const ProductPage = () => {
   const categoryLabel =
     product.category ||
     (product.type === 'printer' ? 'Printers' : 'Laptops');
-  const isPrinter = (product.type || initialType) === 'printer';
-  const isLaptop = !isPrinter;
+
   const handleAddToCart = () => {
     if (!product) return;
     const cartId = product.cartId || (product.type ? `${product.type}-${product.id}` : product.id);
@@ -501,13 +550,16 @@ const ProductPage = () => {
                     Memory
                   </label>
                   <select
-                    value={selectedMemory}
+                    value={effectiveMemory}
                     onChange={(e) => setSelectedMemory(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                    disabled={memoryOptions.length <= 1}
                   >
-                    <option value="8GB">8GB Unified Memory</option>
-                    <option value="16GB">16GB Unified Memory</option>
-                    <option value="24GB">24GB Unified Memory</option>
+                    {memoryOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -520,13 +572,16 @@ const ProductPage = () => {
                     Size
                   </label>
                   <select
-                    value={selectedSize}
+                  value={effectiveDisplay}
                     onChange={(e) => setSelectedSize(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                  disabled={displayOptions.length <= 1}
                   >
-                    <option value="13-inch">13-inch Retina Display</option>
-                    <option value="14-inch">14-inch Liquid Retina XDR</option>
-                    <option value="16-inch">16-inch Liquid Retina XDR</option>
+                  {displayOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
                   </select>
                 </div>
                 <div>
@@ -534,14 +589,16 @@ const ProductPage = () => {
                     Storage
                   </label>
                   <select
-                    value={selectedStorage}
+                  value={effectiveStorage}
                     onChange={(e) => setSelectedStorage(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
+                  disabled={storageOptions.length <= 1}
                   >
-                    <option value="256GB">256GB SSD</option>
-                    <option value="512GB">512GB SSD</option>
-                    <option value="1TB">1TB SSD</option>
-                    <option value="2TB">2TB SSD</option>
+                  {storageOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
                   </select>
                 </div>
               </div>
