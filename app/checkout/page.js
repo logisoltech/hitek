@@ -48,6 +48,25 @@ const paymentMethods = [
   },
 ];
 
+const formatCardNumber = (value) => {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  const parts = [];
+  for (let i = 0; i < digits.length; i += 4) {
+    parts.push(digits.slice(i, i + 4));
+  }
+  return parts.join(' ').trim();
+};
+
+const formatExpiry = (value) => {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  const month = digits.slice(0, 2);
+  const year = digits.slice(2, 4);
+  return `${month}/${year}`;
+};
+
 const CheckoutPage = () => {
   const router = useRouter();
   const { cartItems, cartSubtotal, clearCart } = useCart();
@@ -113,6 +132,27 @@ const CheckoutPage = () => {
           email: data.email || prev.email,
           phone: data.phone || prev.phone,
         }));
+
+        try {
+          const cardsResponse = await fetch(
+            `https://hitek-server.onrender.com/api/users/${parsed.id}/cards`,
+          );
+          if (cardsResponse.ok) {
+            const cards = await cardsResponse.json();
+            if (Array.isArray(cards) && cards.length) {
+              const primaryCard = cards[0];
+              setCardInfo((prev) => ({
+                ...prev,
+                name: primaryCard.name_on_card || prev.name || `${data.first_name || ''} ${data.last_name || ''}`.trim(),
+                number: formatCardNumber(primaryCard.card_number || prev.number),
+                expiry: formatExpiry(primaryCard.expiry || prev.expiry),
+                cvc: primaryCard.cvc || prev.cvc,
+              }));
+            }
+          }
+        } catch (cardError) {
+          console.error('Checkout card fetch error:', cardError);
+        }
       } catch (error) {
         console.error('Checkout user fetch error:', error);
         setUserError(error.message || 'Failed to load saved billing information.');
@@ -133,7 +173,16 @@ const CheckoutPage = () => {
   };
 
   const handleCardChange = (field) => (event) => {
-    setCardInfo((prev) => ({ ...prev, [field]: event.target.value }));
+    const { value } = event.target;
+    setCardInfo((prev) => ({
+      ...prev,
+      [field]:
+        field === 'number'
+          ? formatCardNumber(value)
+          : field === 'expiry'
+            ? formatExpiry(value)
+            : value,
+    }));
     setStatusMessage('');
   };
 
