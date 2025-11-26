@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -16,7 +16,8 @@ import ProductModal from '../Cx/Components/ProductModal';
 import { useCart } from '../Cx/Providers/CartProvider';
 import { useImagePreloader } from '../Cx/hooks/useImagePreloader';
 
-export const ProductsPage = ({ searchParams, restrictToType = null, pageTitle = 'All Products', showCategoryFilter = true } = {}) => {
+export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictToType = null, pageTitle = 'All Products', showCategoryFilter = true } = {}) => {
+  const searchParams = useSearchParams();
   const PRICE_MIN = 0;
   const PRICE_MAX = 500000;
   const defaultCategory =
@@ -28,12 +29,26 @@ export const ProductsPage = ({ searchParams, restrictToType = null, pageTitle = 
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
 
   const [priceRange, setPriceRange] = useState({ min: PRICE_MIN, max: PRICE_MAX });
+  const resolveBrandParam = (value) => {
+    if (!value) return '';
+    if (Array.isArray(value)) {
+      return value[0] ? value[0].toString().trim() : '';
+    }
+    return value.toString().trim();
+  };
+
+  const brandFromUrl = searchParams?.get('brand') || '';
+  const brandFromProps = resolveBrandParam(initialSearchParams?.brand);
+  const brandParam = brandFromUrl || brandFromProps;
+
   const [selectedPriceRange, setSelectedPriceRange] = useState('');
   const [activeFilters, setActiveFilters] = useState(['Core i7']);
   const [sortBy, setSortBy] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
-  const [selectedBrands, setSelectedBrands] = useState([]);
+  const [selectedBrands, setSelectedBrands] = useState(brandParam ? [brandParam] : []);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const brandFromUrlRef = useRef(Boolean(brandParam));
 
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -45,26 +60,19 @@ export const ProductsPage = ({ searchParams, restrictToType = null, pageTitle = 
   const FEATURED_BANNER_PRODUCT_ID = '12';
 
   useEffect(() => {
-    const brandParam = searchParams?.brand;
-    const normalized = brandParam ? brandParam.trim() : '';
-
-    if (normalized) {
-      setSelectedBrands((prev) => {
-        if (prev.length === 1 && prev[0] === normalized) return prev;
-        return [normalized];
-      });
-      setSelectedCategory((prev) => (prev === 'Laptops' ? prev : 'Laptops'));
-      if (!sortBy) {
-        setSortBy('Price: Low to High');
-      }
-      if (selectedPriceRange !== 'all') {
-        setSelectedPriceRange('all');
-      }
+    if (brandParam) {
+      const targetCategory = restrictToType === 'printer' ? 'Printers' : 'Laptops';
+      brandFromUrlRef.current = true;
+      setSelectedBrands([brandParam]);
+      setSelectedCategory((prev) => (prev === targetCategory ? prev : targetCategory));
+      setSortBy((prev) => (prev ? prev : 'Price: Low to High'));
+      setSelectedPriceRange((prev) => (prev === 'all' ? prev : 'all'));
       setCurrentPage(1);
-    } else if (selectedBrands.length) {
+    } else if (brandFromUrlRef.current) {
+      brandFromUrlRef.current = false;
       setSelectedBrands([]);
     }
-  }, [searchParams, sortBy, selectedPriceRange, selectedBrands.length]);
+  }, [brandParam, restrictToType]);
 
   const clampPrice = (value) => {
     const numeric = Number(value);
@@ -227,8 +235,8 @@ export const ProductsPage = ({ searchParams, restrictToType = null, pageTitle = 
         if (restrictToType) {
           url.searchParams.set('category', restrictToType);
         }
-        if (searchParams?.brand) {
-          url.searchParams.set('brand', searchParams.brand);
+        if (brandParam) {
+          url.searchParams.set('brand', brandParam);
         }
 
         const response = await fetch(url.toString());
@@ -271,7 +279,7 @@ export const ProductsPage = ({ searchParams, restrictToType = null, pageTitle = 
     return () => {
       isMounted = false;
     };
-  }, [sortBy, restrictToType, searchParams?.brand]);
+  }, [sortBy, restrictToType, brandParam]);
 
   useEffect(() => {
     if (restrictToType === 'laptop') {
@@ -471,6 +479,7 @@ export const ProductsPage = ({ searchParams, restrictToType = null, pageTitle = 
   };
 
   const handleBrandToggle = useCallback((brand) => {
+    brandFromUrlRef.current = false;
     const trimmed = brand.trim();
     setSelectedBrands((prev) => {
       const exists = prev.includes(trimmed);
@@ -994,6 +1003,17 @@ export const ProductsPage = ({ searchParams, restrictToType = null, pageTitle = 
   );
 }
 
-export default function AllProductsPage({ searchParams }) {
-  return <ProductsPage searchParams={searchParams} />;
+export default async function AllProductsPage({ searchParams }) {
+  const resolvedParams = await searchParams;
+  const normalized =
+    resolvedParams && typeof resolvedParams.entries === 'function'
+      ? Object.fromEntries(resolvedParams.entries())
+      : Object.fromEntries(
+          Object.entries(resolvedParams ?? {}).map(([key, value]) => [
+            key,
+            Array.isArray(value) ? value[0] : value,
+          ]),
+        );
+
+  return <ProductsPage searchParams={normalized} />;
 }
