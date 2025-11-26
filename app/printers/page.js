@@ -1,14 +1,11 @@
 'use client';
 
 import { ProductsPage } from '../all-products/page';
-import { useSearchParams } from 'next/navigation';
 
-export default function PrintersPage() {
-  const searchParams = useSearchParams();
-
+export default function PrintersPage({ searchParams }) {
   return (
     <ProductsPage
-      searchParams={Object.fromEntries(searchParams)}
+      searchParams={searchParams}
       restrictToType="printer"
       pageTitle="Printers"
       showCategoryFilter={false}

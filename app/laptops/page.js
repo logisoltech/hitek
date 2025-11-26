@@ -2,14 +2,10 @@
 
 import { ProductsPage } from '../all-products/page';
 
-import { useSearchParams } from 'next/navigation';
-
-export default function LaptopsPage() {
-  const searchParams = useSearchParams();
-
+export default function LaptopsPage({ searchParams }) {
   return (
     <ProductsPage
-      searchParams={Object.fromEntries(searchParams)}
+      searchParams={searchParams}
       restrictToType="laptop"
       pageTitle="Laptops"
       showCategoryFilter={false}
