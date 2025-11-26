@@ -304,11 +304,11 @@ const Navbar = () => {
         <div className="flex items-center gap-4">
           <span className="text-sm">Follow us:</span>
           <div className="flex items-center gap-3">
-            <FaFacebook className="cursor-pointer hover:text-blue-200 transition" />
-            <FaInstagram className="cursor-pointer hover:text-blue-200 transition" />
-            <FaTiktok className="cursor-pointer hover:text-blue-200 transition" />
-            <FaLinkedin className="cursor-pointer hover:text-blue-200 transition" />
-            <FaYoutube className="cursor-pointer hover:text-blue-200 transition" />
+            <Link href="https://www.facebook.com/hitekcomputer" target='_blank'><FaFacebook className="cursor-pointer hover:text-blue-200 transition" /></Link>
+            <Link href="https://www.instagram.com/hitek_computers" target='_blank'><FaInstagram className="cursor-pointer hover:text-blue-200 transition" /></Link>
+            <Link href="https://www.tiktok.com/@hi_tek_computers" target='_blank'><FaTiktok className="cursor-pointer hover:text-blue-200 transition" /></Link>
+            <Link href="https://www.linkedin.com/company/hitek-computers/?viewAsMember=true" target='_blank'><FaLinkedin className="cursor-pointer hover:text-blue-200 transition" /></Link>
+            <Link href="https://www.youtube.com/@HiTek_Computers" target='_blank'><FaYoutube className="cursor-pointer hover:text-blue-200 transition" /></Link>
           </div>
           <div className="flex items-center gap-2 px-2 py-1 border border-white/30 rounded cursor-pointer hover:bg-white/10">
             <span className="text-sm">Eng</span>
