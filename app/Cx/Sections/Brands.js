@@ -3,6 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { openSans } from '../Font/font';
+import Link from 'next/link';
 
 const Brands = () => {
   return (
@@ -10,7 +11,7 @@ const Brands = () => {
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* HP OMEN Banner */}
-          <div className="relative group cursor-pointer overflow-hidden rounded-lg h-64">
+          <Link href="/laptops?brand=HP" className="relative group cursor-pointer overflow-hidden rounded-lg h-64">
             <div className="w-full h-full">
               <Image 
                 src="/hp-victus.jpg" 
@@ -25,10 +26,10 @@ const Brands = () => {
                 <h3 className="text-2xl font-bold mb-2">HP OMEN Laptops Now Available!</h3>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* HP LaserJet Banner */}
-          <div className="relative group cursor-pointer overflow-hidden rounded-lg h-64">
+          <Link href="/printers?brand=HP" className="relative group cursor-pointer overflow-hidden rounded-lg h-64">
             <div className="w-full h-full">
               <Image 
                 src="/cool-hp.jpg" 
@@ -43,10 +44,10 @@ const Brands = () => {
                 <h3 className="text-2xl font-bold mb-2">HP LaserJet Printers & Toner</h3>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* Lenovo LEGION Banner */}
-          <div className="relative group cursor-pointer overflow-hidden rounded-lg h-64">
+          <Link href="/laptops?brand=Lenovo" className="relative group cursor-pointer overflow-hidden rounded-lg h-64">
             <div className="w-full h-full">
               <Image 
                 src="/lenovo-legion.jpg" 
@@ -61,7 +62,7 @@ const Brands = () => {
                 <h3 className="text-2xl font-bold mb-2">Lenovo LEGION Laptops Now Available!</h3>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
       </div>
     </div>

@@ -46,9 +46,14 @@ const Navbar = () => {
   const [isAllProductsHovered, setIsAllProductsHovered] = useState(false);
   const [isLaptopsHovered, setIsLaptopsHovered] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState('All');
+  const [selectedPrinterBrand, setSelectedPrinterBrand] = useState('All');
   const [featuredLaptops, setFeaturedLaptops] = useState([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [featuredError, setFeaturedError] = useState('');
+  const [featuredPrinters, setFeaturedPrinters] = useState([]);
+  const [printersLoading, setPrintersLoading] = useState(false);
+  const [printersError, setPrintersError] = useState('');
+  const [featuredBannerProduct, setFeaturedBannerProduct] = useState(null);
   const { cartCount } = useCart();
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -152,6 +157,100 @@ const Navbar = () => {
     fetchFeaturedLaptops();
   }, []);
 
+  useEffect(() => {
+    const fetchFeaturedPrinters = async () => {
+      try {
+        setPrintersLoading(true);
+        setPrintersError('');
+
+        const response = await fetch('https://hitek-server.onrender.com/api/printers?featured=true&limit=3', {
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          throw new Error('Failed to load featured printers.');
+        }
+
+        const data = await response.json();
+        const items = Array.isArray(data) ? data : [];
+        const normalized = items
+          .filter((item) => item?.featured === true || item?.featured === 'true' || item?.featured === 't')
+          .map((item) => {
+            const id =
+              item?.id !== null && item?.id !== undefined && item?.id?.toString
+                ? item.id.toString()
+                : item.id;
+            const computedName =
+              item?.name ||
+              [item?.brand, item?.series].filter(Boolean).join(' ').trim() ||
+              'Printer';
+            return {
+              id,
+              name: computedName,
+              brand: item?.brand || '',
+              price: parseNumeric(item?.price, 0),
+              image: extractPrimaryImage(item) || '/printer-category.png',
+            };
+          });
+
+        setFeaturedPrinters(normalized);
+      } catch (error) {
+        console.error('Featured printers fetch error:', error);
+        setPrintersError(error.message || 'Unable to load featured printers.');
+        setFeaturedPrinters([]);
+      } finally {
+        setPrintersLoading(false);
+      }
+    };
+
+    fetchFeaturedPrinters();
+  }, []);
+
+  useEffect(() => {
+    const fetchBannerProduct = async () => {
+      try {
+        const response = await fetch('https://hitek-server.onrender.com/api/laptops/12', {
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          throw new Error('Failed to load featured banner product.');
+        }
+
+        const data = await response.json();
+        if (!data) {
+          setFeaturedBannerProduct(null);
+          return;
+        }
+
+        const id =
+          data?.id !== null && data?.id !== undefined && data?.id?.toString
+            ? data.id.toString()
+            : data.id;
+        const name =
+          data?.name ||
+          [data?.brand, data?.model || data?.series].filter(Boolean).join(' ').trim() ||
+          'Laptop';
+        const description =
+          typeof data?.description === 'string' && data.description.trim()
+            ? data.description.trim()
+            : 'Explore powerful performance and sleek design tailored for professionals.';
+
+        setFeaturedBannerProduct({
+          id,
+          name,
+          brand: data?.brand || '',
+          description,
+          price: parseNumeric(data?.price, 0),
+          image: extractPrimaryImage(data),
+        });
+      } catch (error) {
+        console.error('Featured laptop banner fetch error:', error);
+        setFeaturedBannerProduct(null);
+      }
+    };
+
+    fetchBannerProduct();
+  }, []);
+
   const userInitials = useMemo(() => {
     if (!currentUser) return null;
     const nameParts = [currentUser.first_name, currentUser.last_name]
@@ -177,6 +276,15 @@ const Navbar = () => {
       (item.brand || '').toLowerCase().includes(normalized),
     );
   }, [featuredLaptops, selectedBrand]);
+
+  const filteredFeaturedPrinters = useMemo(() => {
+    if (!featuredPrinters.length) return [];
+    if (selectedPrinterBrand === 'All') return featuredPrinters;
+    const normalized = selectedPrinterBrand.toLowerCase();
+    return featuredPrinters.filter((item) =>
+      (item.brand || '').toLowerCase().includes(normalized),
+    );
+  }, [featuredPrinters, selectedPrinterBrand]);
 
   const handleLogout = () => {
     if (typeof window === 'undefined') return;
@@ -543,36 +651,47 @@ const Navbar = () => {
                               </div>
 
                               {/* Right Side - Promotional Banner */}
-                              <div className="w-64 shrink-0">
-                                <div className="bg-gray-300 rounded-lg p-6 text-black h-full flex flex-col">
-                                  <div className="mb-4">
-                                    <Image
-                                      src="/big-laptop.png"
-                                      alt="HP OMEN 16"
-                                      width={200}
-                                      height={150}
-                                      className="w-full h-auto object-contain"
-                                    />
-                                  </div>
-                                  <div className="bg-yellow-400 text-black text-xs font-bold px-2 py-1 inline-block mb-3">
-                                    21% Discount
-                                  </div>
-                                  <h3 className="text-xl font-bold mb-2">HP OMEN 16</h3>
-                                  <p className="text-sm text-gray-700 mb-4 flex-1">
-                                    The HP OMEN 16 delivers impressive 1080p gaming performance perfect for midrange gamers.
-                                  </p>
-                                  <div className="mb-4">
-                                    <p className="text-sm">
-                                      <span className="text-gray-700">Starting price: </span>
-                                      <span className="font-bold bg-white text-black px-2 py-1 rounded">PKR 150,000</span>
-                                    </p>
-                                  </div>
-                                  <button className="bg-[#00aeef] hover:bg-[#0099d9] text-white px-6 py-2 rounded-sm font-bold flex items-center justify-center gap-2 transition w-full">
-                                    SHOP NOW
-                                    <FiArrowRight />
-                                  </button>
-                                </div>
-                              </div>
+                    <div className="w-64 shrink-0">
+                      {featuredBannerProduct ? (
+                        <div className="bg-gray-300 rounded-lg p-6 text-black h-full flex flex-col">
+                          <div className="mb-4">
+                            <Image
+                              src={featuredBannerProduct.image || '/big-laptop.png'}
+                              alt={featuredBannerProduct.name}
+                              width={200}
+                              height={150}
+                              className="w-full h-auto object-contain"
+                            />
+                          </div>
+                          <div className="bg-yellow-400 text-black text-xs font-bold px-2 py-1 inline-block mb-3">
+                            Featured Pick
+                          </div>
+                          <h3 className="text-xl font-bold mb-2 line-clamp-2">{featuredBannerProduct.name}</h3>
+                          <p className="text-sm text-gray-700 mb-4 flex-1 line-clamp-3">
+                            {featuredBannerProduct.description}
+                          </p>
+                          <div className="mb-4">
+                            <p className="text-sm">
+                              <span className="text-gray-700">Price: </span>
+                              <span className="font-bold bg-white text-black px-2 py-1 rounded">
+                                {formatPrice(featuredBannerProduct.price)}
+                              </span>
+                            </p>
+                          </div>
+                          <Link
+                            href={`/product/${featuredBannerProduct.id}?type=laptop`}
+                            className="bg-[#00aeef] hover:bg-[#0099d9] text-white px-6 py-2 rounded-sm font-bold flex items-center justify-center gap-2 transition w-full"
+                          >
+                            View Laptop
+                            <FiArrowRight />
+                          </Link>
+                        </div>
+                      ) : (
+                        <div className="bg-gray-100 rounded-lg p-6 text-gray-600 text-sm">
+                          Loading featured laptop...
+                        </div>
+                      )}
+                    </div>
                             </div>
                           </div>
                           </>
@@ -603,21 +722,183 @@ const Navbar = () => {
                   </div>
                 )}
               </div>
-              <a href="/laptops" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
-                <CiLaptop className="text-2xl shrink-0" />
-                <span className="text-sm">Laptops</span>
-                <FaChevronDown className="text-xs shrink-0" />
-              </a>
+              <div className="relative group shrink-0">
+                <button className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+                  <CiLaptop className="text-2xl shrink-0" />
+                  <span className="text-sm">Laptops</span>
+                  <FaChevronDown className="text-xs shrink-0" />
+                </button>
+                <div className="absolute left-0 top-full w-[520px] bg-white text-black shadow-2xl rounded-b-md py-6 px-6 hidden group-hover:block z-40">
+                  <div className="flex gap-6">
+                    <div className="w-40 shrink-0">
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => {
+                            setSelectedBrand('All');
+                            router.replace('/laptops');
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
+                            selectedBrand === 'All' ? 'bg-gray-100' : 'hover:bg-gray-100'
+                          }`}
+                        >
+                          All
+                        </button>
+                        {['HP', 'Dell', 'Lenovo', 'Acer', 'Asus', 'Samsung', 'Chromebook'].map((brand) => (
+                          <button
+                            key={brand}
+                            onClick={() => {
+                              setSelectedBrand(brand);
+                              router.replace(`/laptops?brand=${encodeURIComponent(brand)}`);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
+                              selectedBrand === brand ? 'bg-gray-100' : 'hover:bg-gray-100'
+                            }`}
+                          >
+                            {brand}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-bold text-gray-900 mb-4">FEATURED LAPTOPS</h4>
+                      <div className="space-y-4">
+                        {featuredLoading ? (
+                          <p className="text-xs text-gray-500">Loading featured laptops...</p>
+                        ) : featuredError ? (
+                          <p className="text-xs text-red-500">{featuredError}</p>
+                        ) : filteredFeaturedLaptops.length ? (
+                          filteredFeaturedLaptops.map((product, index) => (
+                            <Link
+                              key={product.id || `featured-${index}`}
+                              href={product.id ? `/product/${product.id}?type=laptop` : '/all-products'}
+                              className="flex gap-4 items-center border-b last:border-b-0 border-gray-200 pb-4 hover:bg-gray-50 p-2 -m-2 rounded transition cursor-pointer"
+                            >
+                              <div className="w-24 h-24 shrink-0 flex items-center justify-center">
+                                <Image
+                                  src={product.image || '/big-laptop.png'}
+                                  alt={product.name}
+                                  width={96}
+                                  height={96}
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <h5 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">
+                                  {product.name}
+                                </h5>
+                                {product.brand ? (
+                                  <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                                    {product.brand}
+                                  </p>
+                                ) : null}
+                                <p className="text-sm font-bold text-[#00aeef]">
+                                  {formatPrice(product.price)}
+                                </p>
+                              </div>
+                            </Link>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-500">
+                            No featured laptops selected yet. Mark a laptop as featured in the CMS to show it here.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    
+                  </div>
+                </div>
+              </div>
               <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
                 <PiDesktopTowerThin className="text-2xl shrink-0" />
                 <span className="text-sm">Desktop PCs</span>
                 <FaChevronDown className="text-xs shrink-0" />
               </a>
-              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
-                <IoPrintOutline className="text-2xl shrink-0" />
-                <span className="text-sm">Printers & Toners</span>
-                <FaChevronDown className="text-xs shrink-0" />
-              </a>
+              <div className="relative group shrink-0">
+                <button className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+                  <IoPrintOutline className="text-2xl shrink-0" />
+                  <span className="text-sm">Printers & Toners</span>
+                  <FaChevronDown className="text-xs shrink-0" />
+                </button>
+                <div className="absolute left-0 top-full w-[520px] bg-white text-black shadow-2xl rounded-b-md py-6 px-6 hidden group-hover:block z-40">
+                  <div className="flex gap-6">
+                    <div className="w-40 shrink-0">
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => {
+                            setSelectedPrinterBrand('All');
+                            router.replace('/printers');
+                          }}
+                          className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
+                            selectedPrinterBrand === 'All' ? 'bg-gray-100' : 'hover:bg-gray-100'
+                          }`}
+                        >
+                          All
+                        </button>
+                        {['HP', 'Epson', 'Canon', 'Brother', 'Ricoh', 'Xerox'].map((brand) => (
+                          <button
+                            key={brand}
+                            onClick={() => {
+                              setSelectedPrinterBrand(brand);
+                              router.replace(`/printers?brand=${encodeURIComponent(brand)}`);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
+                              selectedPrinterBrand === brand ? 'bg-gray-100' : 'hover:bg-gray-100'
+                            }`}
+                          >
+                            {brand}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-bold text-gray-900 mb-4">FEATURED PRINTERS</h4>
+                      <div className="space-y-4">
+                        {printersLoading ? (
+                          <p className="text-xs text-gray-500">Loading featured printers...</p>
+                        ) : printersError ? (
+                          <p className="text-xs text-red-500">{printersError}</p>
+                        ) : filteredFeaturedPrinters.length ? (
+                          filteredFeaturedPrinters.map((product, index) => (
+                            <Link
+                              key={product.id || `printer-featured-${index}`}
+                              href={product.id ? `/product/${product.id}?type=printer` : '/all-products'}
+                              className="flex gap-4 items-center border-b last:border-b-0 border-gray-200 pb-4 hover:bg-gray-50 p-2 -m-2 rounded transition cursor-pointer"
+                            >
+                              <div className="w-24 h-24 shrink-0 flex items-center justify-center">
+                                <Image
+                                  src={product.image || '/printer-category.png'}
+                                  alt={product.name}
+                                  width={96}
+                                  height={96}
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <h5 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">
+                                  {product.name}
+                                </h5>
+                                {product.brand ? (
+                                  <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                                    {product.brand}
+                                  </p>
+                                ) : null}
+                                <p className="text-sm font-bold text-[#00aeef]">
+                                  {formatPrice(product.price)}
+                                </p>
+                              </div>
+                            </Link>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-500">
+                            No featured printers yet. Mark a printer as featured in the CMS to show it here.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    
+                  </div>
+                </div>
+              </div>
               <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
                 <CiMonitor className="text-2xl shrink-0" />
                 <span className="text-sm">LED Monitors</span>
