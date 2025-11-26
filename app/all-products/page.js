@@ -19,8 +19,8 @@ export default function AllProducts() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [priceRange, setPriceRange] = useState({ min: 150000, max: 200000 });
   const [selectedPriceRange, setSelectedPriceRange] = useState('150000-200000');
-  const [activeFilters, setActiveFilters] = useState(['Core i7']);
-  const [sortBy, setSortBy] = useState('Most Popular');
+  const [activeFilters, setActiveFilters] = useState(['']);
+  const [sortBy, setSortBy] = useState('Price: Low to High');
   const [selectedTags, setSelectedTags] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -105,48 +105,83 @@ export default function AllProducts() {
     };
   };
 
+  const resolveSortParam = (value) => {
+    if (!value) return '';
+    const normalized = value.toString().trim().toLowerCase();
+    if (
+      normalized === 'price: low to high' ||
+      normalized === 'price low to high' ||
+      normalized === 'price - low to high' ||
+      normalized === 'price_low_to_high'
+    ) {
+      return 'price_asc';
+    }
+    if (
+      normalized === 'price: high to low' ||
+      normalized === 'price high to low' ||
+      normalized === 'price - high to low' ||
+      normalized === 'price_high_to_low'
+    ) {
+      return 'price_desc';
+    }
+    return '';
+  };
+
   useEffect(() => {
-    const fetchCategory = async (url, type) => {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Failed to load ${type} products`);
-        }
-        const data = await response.json();
-        const items = Array.isArray(data) ? data : [];
-        const normalized = items
-          .map((item) => normalizeProduct(item, type))
-          .filter(Boolean);
-        return { data: normalized, error: null };
-      } catch (error) {
-        console.error(`${type} products fetch error:`, error);
-        return { data: [], error: error.message || `Failed to load ${type} products` };
-      }
-    };
+    let isMounted = true;
 
     const fetchProducts = async () => {
       setLoadingProducts(true);
       setFetchError('');
 
-      const [laptopsResult, printersResult] = await Promise.all([
-        fetchCategory('https://hitek-server.onrender.com/api/laptops', 'laptop'),
-        fetchCategory('https://hitek-server.onrender.com/api/printers', 'printer'),
-      ]);
+      try {
+        const sortParam = resolveSortParam(sortBy);
+        const url = new URL('https://hitek-server.onrender.com/api/products');
+        if (sortParam) {
+          url.searchParams.set('sort', sortParam);
+        }
 
-      const combined = [...laptopsResult.data, ...printersResult.data];
-      setProducts(combined);
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+          throw new Error('Failed to load products');
+        }
 
-      if (laptopsResult.error && printersResult.error) {
-        setFetchError('Failed to load products. Please try again.');
-      } else if (laptopsResult.error || printersResult.error) {
-        setFetchError('Some product categories failed to load.');
+        const payload = await response.json();
+        if (!isMounted) return;
+
+        const normalized = (Array.isArray(payload) ? payload : [])
+          .map((item) => {
+            const inferredType =
+              item?.type ||
+              (typeof item?.category === 'string' && item.category.toLowerCase().includes('printer')
+                ? 'printer'
+                : 'laptop');
+            return normalizeProduct(item, inferredType || 'laptop');
+          })
+          .filter(Boolean);
+
+        setProducts(normalized);
+        setCurrentPage(1);
+        setFetchError('');
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('products fetch error:', error);
+        setProducts([]);
+        setCurrentPage(1);
+        setFetchError(error.message || 'Failed to load products. Please try again.');
+      } finally {
+        if (isMounted) {
+          setLoadingProducts(false);
+        }
       }
-
-      setLoadingProducts(false);
     };
 
     fetchProducts();
-  }, []);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sortBy]);
 
   useEffect(() => {
     setActiveFilters((prev) => {
@@ -159,6 +194,9 @@ export default function AllProducts() {
 
   const filteredProducts = useMemo(() => {
     if (!products.length) return [];
+    if(selectedCategory == "All Products") {
+      return products;
+    }
     if (selectedCategory === 'Laptops') {
       return products.filter((product) => product.category === 'Laptops');
     }
@@ -175,6 +213,7 @@ export default function AllProducts() {
     (Number(value) || 0).toLocaleString('en-US');
 
   const categories = [
+    'All Products',
     'Laptops',
     'Desktop PCs',
     'Printers',
@@ -575,15 +614,13 @@ export default function AllProducts() {
                       onChange={(e) => setSortBy(e.target.value)}
                       className="px-4 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
                     >
-                      <option>Most Popular</option>
                       <option>Price: Low to High</option>
                       <option>Price: High to Low</option>
-                      <option>Newest First</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Active Filters */}
+                {/* Active Filters
                 {activeFilters.length > 0 && (
                   <div className="mt-4 flex items-center gap-2 flex-wrap">
                     <span className="text-sm text-gray-700 font-medium">Active Filters:</span>
@@ -602,7 +639,7 @@ export default function AllProducts() {
                       </span>
                     ))}
                   </div>
-                )}
+                )} */}
 
                 {/* Results Count */}
                 <div className="mt-4 text-sm text-gray-600">

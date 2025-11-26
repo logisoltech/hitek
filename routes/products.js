@@ -19,6 +19,123 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
+const normalizeSortParam = (value) => {
+  if (!value) return null;
+  const normalized = value.toString().trim().toLowerCase().replace(':', '_');
+  if (['price_asc', 'price-low-high', 'price_low_high'].includes(normalized)) {
+    return { key: 'price', ascending: true };
+  }
+  if (['price_desc', 'price-high-low', 'price_high_low'].includes(normalized)) {
+    return { key: 'price', ascending: false };
+  }
+  return null;
+};
+
+const coercePriceValue = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^\d.-]/g, '');
+    if (!cleaned) return null;
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const attachType = (records, type) => {
+  if (!Array.isArray(records)) return [];
+  return records.map((item) => ({
+    ...item,
+    type,
+  }));
+};
+
+router.get('/', async (req, res) => {
+  try {
+    const { sort, category, limit } = req.query;
+    const sortConfig = normalizeSortParam(sort);
+    const parsedLimit = Number(limit);
+    const applyLimit = Number.isFinite(parsedLimit) && parsedLimit > 0;
+
+    const normalizedCategory = category ? category.toString().trim().toLowerCase() : null;
+    const wantsLaptops =
+      !normalizedCategory || ['laptop', 'laptops', 'notebook', 'notebooks'].includes(normalizedCategory);
+    const wantsPrinters =
+      !normalizedCategory || ['printer', 'printers'].includes(normalizedCategory);
+
+    const fetchPlans = [];
+    if (wantsLaptops) {
+      fetchPlans.push({
+        type: 'laptop',
+        request: supabase.from('laptops').select('*'),
+      });
+    }
+    if (wantsPrinters) {
+      fetchPlans.push({
+        type: 'printer',
+        request: supabase.from('printers').select('*'),
+      });
+    }
+
+    if (fetchPlans.length === 0) {
+      return res.json([]);
+    }
+
+    const responses = await Promise.all(fetchPlans.map(({ request }) => request));
+
+    let combined = [];
+    for (let index = 0; index < responses.length; index += 1) {
+      const { data, error } = responses[index];
+      const { type } = fetchPlans[index];
+
+      if (error) {
+        console.error(`Failed to fetch ${type} products:`, error);
+        return res.status(500).json({ error: 'Failed to fetch products' });
+      }
+
+      combined = combined.concat(attachType(data || [], type));
+    }
+
+    if (sortConfig?.key === 'price') {
+      combined = combined
+        .slice()
+        .sort((a, b) => {
+          const priceA = coercePriceValue(a.price);
+          const priceB = coercePriceValue(b.price);
+
+          if (priceA === null && priceB === null) return 0;
+          if (priceA === null) return sortConfig.ascending ? 1 : -1;
+          if (priceB === null) return sortConfig.ascending ? -1 : 1;
+
+          return sortConfig.ascending ? priceA - priceB : priceB - priceA;
+        });
+    } else {
+      combined = combined
+        .slice()
+        .sort((a, b) => {
+          const idA = Number(a.id);
+          const idB = Number(b.id);
+          if (Number.isFinite(idA) && Number.isFinite(idB)) {
+            return idA - idB;
+          }
+          return (a.id || '').toString().localeCompare((b.id || '').toString());
+        });
+    }
+
+    if (applyLimit) {
+      combined = combined.slice(0, parsedLimit);
+    }
+
+    res.json(combined);
+  } catch (err) {
+    console.error('Unexpected error fetching products:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
