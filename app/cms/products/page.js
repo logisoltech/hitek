@@ -70,6 +70,7 @@ const sanitizeProduct = (item, type) => {
     stock: parseNumeric(item.stock, 10),
     rating: parseNumeric(item.rating, 4.7),
     reviews: parseNumeric(item.reviews, 0),
+    featured: ['true', 't', '1', true, 1].includes(item?.featured),
   };
 };
 
@@ -165,6 +166,7 @@ const CmsProductsPage = () => {
     price: '',
     stock: '',
     description: '',
+  featured: false,
   });
   const [editSpecs, setEditSpecs] = useState({});
   const [editExistingImages, setEditExistingImages] = useState([]);
@@ -275,6 +277,7 @@ const CmsProductsPage = () => {
       price: '',
       stock: '',
       description: '',
+      featured: false,
     });
     setEditSpecs({});
     setEditExistingImages([]);
@@ -325,6 +328,7 @@ const CmsProductsPage = () => {
         price: data.price !== null && data.price !== undefined ? String(data.price) : '',
         stock: data.stock !== null && data.stock !== undefined ? String(data.stock) : '',
         description: typeof data.description === 'string' ? data.description : '',
+        featured: ['true', 't', '1', true, 1].includes(data?.featured),
       });
 
       const specFields = product.type === 'printer' ? PRINTER_SPEC_FIELDS : LAPTOP_SPEC_FIELDS;
@@ -357,8 +361,11 @@ const CmsProductsPage = () => {
   }, []);
 
   const handleEditDetailChange = useCallback((event) => {
-    const { name, value } = event.target;
-    setEditDetails((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setEditDetails((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
   }, []);
 
   const handleEditSpecChange = useCallback((event) => {
@@ -475,7 +482,11 @@ const CmsProductsPage = () => {
 
       const formData = new FormData();
       Object.entries(editDetails).forEach(([key, value]) => {
-        formData.append(key, value ?? '');
+        if (key === 'featured') {
+          formData.append(key, value ? 'true' : 'false');
+        } else {
+          formData.append(key, value ?? '');
+        }
       });
 
       formData.append('specs', JSON.stringify(editSpecs));
@@ -700,8 +711,13 @@ const CmsProductsPage = () => {
                       openEditModal(product);
                     }
                   }}
-                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/10 backdrop-blur-xl shadow-xl transition transform hover:-translate-y-1 hover:shadow-2xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#38bdf8]/60"
+                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:border-[#38bdf8]/40 hover:bg-white/10 cursor-pointer"
                 >
+                  {product.featured && (
+                    <span className="absolute top-4 left-4 inline-flex items-center gap-1 rounded-full bg-[#38bdf8]/20 border border-[#38bdf8]/40 px-3 py-1 text-xs font-semibold text-[#38bdf8] backdrop-blur">
+                      Featured
+                    </span>
+                  )}
                   <div className="absolute inset-0 bg-linear-to-br from-white/10 via-transparent to-white/5 opacity-60 pointer-events-none" />
                   <div className="relative p-6 flex flex-col gap-4">
                     <div className="flex items-center justify-between">
@@ -811,6 +827,22 @@ const CmsProductsPage = () => {
                     />
                   </label>
                 </div>
+
+                {editTarget?.type !== 'printer' && (
+                  <label className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-4">
+                    <input
+                      type="checkbox"
+                      name="featured"
+                      checked={Boolean(editDetails.featured)}
+                      onChange={handleEditDetailChange}
+                      disabled={editSubmitting}
+                      className="mt-1 h-4 w-4 rounded border-white/40 bg-white/10 text-[#38bdf8] focus:ring-2 focus:ring-[#38bdf8]/60 disabled:opacity-60"
+                    />
+                    <span className="text-sm text-slate-200 leading-relaxed">
+                      Feature this laptop in the navigation dropdown (maximum of three featured laptops are displayed).
+                    </span>
+                  </label>
+                )}
 
                 <div>
                   <h3 className="text-sm font-semibold text-white mb-3">

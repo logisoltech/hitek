@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
-import Image from 'next/image';
-import { FaChevronLeft, FaChevronRight, FaPlay } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { openSans } from '../Font/font';
 
 const Videos = () => {
@@ -21,26 +20,12 @@ const Videos = () => {
   };
 
   const videos = [
-    {
-      thumbnail: '/laptop-category.jpg',
-      alt: 'Laptop Video'
-    },
-    {
-      thumbnail: '/stacked-laptops.jpg',
-      alt: 'Laptops Stack Video'
-    },
-    {
-      thumbnail: '/monitor-category.png',
-      alt: 'Monitor Video'
-    },
-    {
-      thumbnail: '/hp-victus.jpg',
-      alt: 'HP OMEN Video'
-    },
-    {
-      thumbnail: '/laptop-category.jpg',
-      alt: 'Laptop Video'
-    }
+    '7572677007847230741',
+    '7572677590457044244',
+    '7572676001344261397',
+    '7572675173229415700',
+    '7572665292359322900',
+    '7572610466745290004',
   ];
 
   return (
@@ -64,27 +49,19 @@ const Videos = () => {
             className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {videos.map((video, index) => (
+            {videos.map((videoId) => (
               <div
-                key={index}
-                className="relative shrink-0 w-[306px] h-[433px] rounded-lg overflow-hidden group cursor-pointer"
+                key={videoId}
+                className="relative shrink-0 w-[306px] h-[433px] rounded-lg overflow-hidden bg-black"
               >
-                <Image
-                  src={video.thumbnail}
-                  alt={video.alt}
-                  fill
-                  className="object-cover"
+                <iframe
+                  src={`https://www.tiktok.com/embed/v3/${videoId}`}
+                  title={`TikTok video ${videoId}`}
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  scrolling="no"
+                  className="absolute inset-0 w-full h-full"
                 />
-                
-                {/* Dark Overlay */}
-                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition"></div>
-                
-                {/* Play Button */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-16 h-16 bg-[#00aeef] hover:bg-[#0099d9] rounded-full flex items-center justify-center transition transform group-hover:scale-110">
-                    <FaPlay className="text-white text-xl ml-1" />
-                  </div>
-                </div>
               </div>
             ))}
           </div>

@@ -43,9 +43,48 @@ const Navbar = () => {
   const [isProfileHovered, setIsProfileHovered] = useState(false);
   const [isAllProductsHovered, setIsAllProductsHovered] = useState(false);
   const [isLaptopsHovered, setIsLaptopsHovered] = useState(false);
-  const [selectedBrand, setSelectedBrand] = useState('HP');
+  const [selectedBrand, setSelectedBrand] = useState('All');
+  const [featuredLaptops, setFeaturedLaptops] = useState([]);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
+  const [featuredError, setFeaturedError] = useState('');
   const { cartCount } = useCart();
   const [currentUser, setCurrentUser] = useState(null);
+
+  const parseNumeric = (value, fallback = 0) => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === 'number' && !Number.isNaN(value)) return value;
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/[^\d.-]/g, '');
+      const parsed = Number(cleaned);
+      return Number.isNaN(parsed) ? fallback : parsed;
+    }
+    return fallback;
+  };
+
+  const extractPrimaryImage = (item) => {
+    if (!item) return '/big-laptop.png';
+    const candidates = [
+      item.imageUrls,
+      item.image_urls,
+      item.images,
+      item.imageurls,
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate) && candidate.length) {
+        const found = candidate.find((url) => typeof url === 'string' && url.trim() !== '');
+        if (found) return found;
+      }
+    }
+    if (typeof item.image === 'string' && item.image.trim()) {
+      return item.image.trim();
+    }
+    return '/big-laptop.png';
+  };
+
+  const formatPrice = (value) => {
+    const numeric = parseNumeric(value, 0);
+    return `PKR ${numeric.toLocaleString('en-PK')}`;
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -61,6 +100,54 @@ const Navbar = () => {
       console.error('Failed to read user from storage:', error);
       setCurrentUser(null);
     }
+  }, []);
+
+  useEffect(() => {
+    const fetchFeaturedLaptops = async () => {
+      try {
+        setFeaturedLoading(true);
+        setFeaturedError('');
+
+        const response = await fetch('https://hitek-server.onrender.com/api/laptops?featured=true&limit=3', {
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          throw new Error('Failed to load featured laptops.');
+        }
+
+        const data = await response.json();
+        const items = Array.isArray(data) ? data : [];
+        const normalized = items
+          .filter((item) => item?.featured === true || item?.featured === 'true' || item?.featured === 't')
+          .map((item) => {
+            const id =
+              item?.id !== null && item?.id !== undefined && item?.id?.toString
+                ? item.id.toString()
+                : item.id;
+            const computedName =
+              item?.name ||
+              [item?.brand, item?.model || item?.series].filter(Boolean).join(' ').trim() ||
+              'Laptop';
+            return {
+              id,
+              name: computedName,
+              brand: item?.brand || '',
+              price: parseNumeric(item?.price, 0),
+              image: extractPrimaryImage(item),
+            };
+          });
+
+        setFeaturedLaptops(normalized);
+      } catch (error) {
+        console.error('Featured laptops fetch error:', error);
+        setFeaturedError(error.message || 'Unable to load featured laptops.');
+        setFeaturedLaptops([]);
+      } finally {
+        setFeaturedLoading(false);
+      }
+    };
+
+    fetchFeaturedLaptops();
   }, []);
 
   const userInitials = useMemo(() => {
@@ -79,6 +166,15 @@ const Navbar = () => {
       .slice(0, 2)
       .toUpperCase();
   }, [currentUser]);
+
+  const filteredFeaturedLaptops = useMemo(() => {
+    if (!featuredLaptops.length) return [];
+    if (selectedBrand === 'All') return featuredLaptops;
+    const normalized = selectedBrand.toLowerCase();
+    return featuredLaptops.filter((item) =>
+      (item.brand || '').toLowerCase().includes(normalized),
+    );
+  }, [featuredLaptops, selectedBrand]);
 
   const handleLogout = () => {
     if (typeof window === 'undefined') return;
@@ -251,6 +347,7 @@ const Navbar = () => {
                 onMouseLeave={() => {
                   setIsAllProductsHovered(false);
                   setIsLaptopsHovered(false);
+                setSelectedBrand('All');
                 }}
               >
                 <Link 
@@ -376,65 +473,46 @@ const Navbar = () => {
                               <div className="flex-1">
                                 <h4 className="text-sm font-bold text-gray-900 mb-4">FEATURED LAPTOPS</h4>
                                 <div className="space-y-4">
-                                  {/* Product 1 */}
-                                  <div className="flex gap-4 items-center border-b border-gray-200 pb-4 hover:bg-gray-50 p-2 -m-2 rounded transition cursor-pointer">
-                                    <div className="w-24 h-24 shrink-0">
-                                      <Image
-                                        src="/big-laptop.png"
-                                        alt="HP VICTUS"
-                                        width={96}
-                                        height={96}
-                                        className="w-full h-full object-contain"
-                                      />
-                                    </div>
-                                    <div className="flex-1">
-                                      <h5 className="text-sm font-medium text-gray-900 mb-1">
-                                        HP VICTUS 15-FA(X033DX) CORE 6-1245014, 8GB 512GB
-                                      </h5>
-                                      <p className="text-sm font-bold text-[#00aeef]">PKR 180,000</p>
-                                    </div>
-                                  </div>
-
-                                  {/* Product 2 */}
-                                  <div className="flex gap-4 items-center border-b border-gray-200 pb-4 hover:bg-gray-50 p-2 -m-2 rounded transition cursor-pointer">
-                                    <div className="w-24 h-24 shrink-0">
-                                      <Image
-                                        src="/big-laptop.png"
-                                        alt="HP OMEN"
-                                        width={96}
-                                        height={96}
-                                        className="w-full h-full object-contain"
-                                      />
-                                    </div>
-                                    <div className="flex-1">
-                                      <h5 className="text-sm font-medium text-gray-900 mb-1">
-                                        HP OMEN 16T-WF100 GAMING I7-14700HX 16GB
-                                      </h5>
-                                      <p className="text-sm font-bold text-[#00aeef]">PKR 200,000</p>
-                                    </div>
-                                  </div>
-
-                                  {/* Product 3 */}
-                                  <div className="flex gap-4 items-center hover:bg-gray-50 p-2 -m-2 rounded transition cursor-pointer">
-                                    <div className="w-24 h-24 shrink-0">
-                                      <Image
-                                        src="/big-laptop.png"
-                                        alt="HP VICTUS"
-                                        width={96}
-                                        height={96}
-                                        className="w-full h-full object-contain"
-                                      />
-                                    </div>
-                                    <div className="flex-1">
-                                      <h5 className="text-sm font-medium text-gray-900 mb-1">
-                                        HP VICTUS 15-FA0033 CI5 12TH GEN 8GB 512GB
-                                      </h5>
-                                      <div className="flex items-center gap-2">
-                                        <p className="text-xs text-gray-400 line-through">PKR 160,500</p>
-                                        <p className="text-sm font-bold text-[#00aeef]">PKR 110,000</p>
-                                      </div>
-                                    </div>
-                                  </div>
+                                  {featuredLoading ? (
+                                    <p className="text-xs text-gray-500">Loading featured laptops...</p>
+                                  ) : featuredError ? (
+                                    <p className="text-xs text-red-500">{featuredError}</p>
+                                  ) : filteredFeaturedLaptops.length ? (
+                                    filteredFeaturedLaptops.map((product, index) => (
+                                      <Link
+                                        key={product.id || `featured-${index}`}
+                                        href={product.id ? `/product/${product.id}?type=laptop` : '/all-products'}
+                                        className="flex gap-4 items-center border-b last:border-b-0 border-gray-200 pb-4 hover:bg-gray-50 p-2 -m-2 rounded transition cursor-pointer"
+                                      >
+                                        <div className="w-24 h-24 shrink-0 flex items-center justify-center">
+                                          <Image
+                                            src={product.image || '/big-laptop.png'}
+                                            alt={product.name}
+                                            width={96}
+                                            height={96}
+                                            className="w-full h-full object-contain"
+                                          />
+                                        </div>
+                                        <div className="flex-1">
+                                          <h5 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">
+                                            {product.name}
+                                          </h5>
+                                          {product.brand ? (
+                                            <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                                              {product.brand}
+                                            </p>
+                                          ) : null}
+                                          <p className="text-sm font-bold text-[#00aeef]">
+                                            {formatPrice(product.price)}
+                                          </p>
+                                        </div>
+                                      </Link>
+                                    ))
+                                  ) : (
+                                    <p className="text-xs text-gray-500">
+                                      No featured laptops selected yet. Mark a laptop as featured in the CMS to show it here.
+                                    </p>
+                                  )}
                                 </div>
                               </div>
 

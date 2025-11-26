@@ -95,6 +95,7 @@ export default function AllProducts() {
       imageUrls: imageArray,
       image_urls: imageArray,
       images: imageArray,
+      featured: ['true', 't', '1', true, 1].includes(item?.featured),
     };
   };
 

@@ -109,6 +109,7 @@ const sanitizeProduct = (input) => {
     imageUrls: images.length ? images : [primaryImage],
     image_urls: images.length ? images : [primaryImage],
     images: images.length ? images : [primaryImage],
+    featured: ['true', 't', '1', true, 1].includes(input?.featured),
   };
 };
 

@@ -78,6 +78,7 @@ const CmsAddProductPage = () => {
     price: '',
     stock: '',
     description: '',
+    featured: false,
   });
   const [specs, setSpecs] = useState({});
   const [images, setImages] = useState([]);
@@ -91,14 +92,26 @@ const CmsAddProductPage = () => {
   }, [category]);
 
   useEffect(() => {
+    if (category !== 'laptop') {
+      setDetails((prev) => ({
+        ...prev,
+        featured: false,
+      }));
+    }
+  }, [category]);
+
+  useEffect(() => {
     return () => {
       images.forEach((item) => URL.revokeObjectURL(item.preview));
     };
   }, [images]);
 
   const handleGeneralChange = (event) => {
-    const { name, value } = event.target;
-    setDetails((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setDetails((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
   };
 
   const handleSpecChange = (event) => {
@@ -137,6 +150,7 @@ const CmsAddProductPage = () => {
       price: '',
       stock: '',
       description: '',
+      featured: false,
     });
     setSpecs({});
     setStatus({ type: '', message: '' });
@@ -176,7 +190,11 @@ const CmsAddProductPage = () => {
       const formData = new FormData();
       formData.append('category', category);
       Object.entries(details).forEach(([key, value]) => {
-        formData.append(key, value);
+        if (key === 'featured') {
+          formData.append(key, value ? 'true' : 'false');
+        } else {
+          formData.append(key, value);
+        }
       });
       formData.append('specs', JSON.stringify(specs));
       images.forEach((item) => {
@@ -298,6 +316,22 @@ const CmsAddProductPage = () => {
                   </label>
                 ))}
               </div>
+
+              {category === 'laptop' && (
+                <label className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-4">
+                  <input
+                    id="featured"
+                    name="featured"
+                    type="checkbox"
+                    checked={details.featured}
+                    onChange={handleGeneralChange}
+                    className="mt-1 h-4 w-4 rounded border-white/40 bg-white/10 text-[#38bdf8] focus:ring-2 focus:ring-[#38bdf8]/60"
+                  />
+                  <span className="text-sm text-slate-200 leading-relaxed">
+                    Feature this laptop in the navigation dropdown (maximum of three featured laptops are displayed).
+                  </span>
+                </label>
+              )}
             </div>
           </section>
 

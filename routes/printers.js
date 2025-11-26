@@ -15,9 +15,39 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
+const parseBooleanQuery = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (['true', '1', 'yes', 'on', 'y'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off', 'n'].includes(normalized)) return false;
+  }
+  return null;
+};
+
 router.get('/', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('printers').select('*').order('id', { ascending: true });
+    const { featured, limit } = req.query;
+
+    const featuredFilter = parseBooleanQuery(featured);
+    let query = supabase.from('printers').select('*').order('id', { ascending: true });
+
+    if (featuredFilter !== null) {
+      query = query.eq('featured', featuredFilter);
+    }
+
+    const parsedLimit = Number(limit);
+    if (Number.isFinite(parsedLimit) && parsedLimit > 0) {
+      query = query.limit(parsedLimit);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Failed to fetch printers:', error);

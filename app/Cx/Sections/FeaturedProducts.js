@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { FaHeart, FaShoppingCart } from 'react-icons/fa';
 import { CiShoppingCart, CiHeart } from 'react-icons/ci';
@@ -8,80 +8,104 @@ import { FaRegEye } from "react-icons/fa6";
 import { FiArrowRight } from 'react-icons/fi';
 import { openSans } from '../Font/font';
 
+const API_BASE = 'https://hitek-server.onrender.com';
+
 const FeaturedProducts = () => {
   const [activeTab, setActiveTab] = useState('All Product');
+  const [laptopData, setLaptopData] = useState([]);
+  const [printerData, setPrinterData] = useState([]);
 
-  const products = [
-    {
-      name: 'ASUS Zenbook 14 OLED Laptop',
-      desc: 'ASUS Zenbook 14 OLED is a touch screen laptop...',
-      price: '400,000',
-      rating: 5,
-      reviews: 738,
-      image: '/laptop-category.jpg',
-      label: { text: 'HOT', color: 'bg-red-500' }
-    },
-    {
-      name: 'HP Laptop 15-fd0232nia',
-      desc: 'HP Laptop 15-fd0232nia, FreeDOS 3.0, 15.6"',
-      price: '112,300',
-      rating: 4.5,
-      reviews: 536,
-      image: '/laptop-category.jpg'
-    },
-    {
-      name: 'HP LaserJet MFP M236dw Printer',
-      desc: 'HP LaserJet MFP M236dw Printer...',
-      price: '54,360',
-      rating: 4.5,
-      reviews: 423,
-      image: '/printer-category.png',
-      label: { text: 'BEST DEALS', color: 'bg-[#00aeef]' }
-    },
-    {
-      name: 'DELL 22" LED P2217H Monitor',
-      desc: 'DELL 22" LED P2217H NEW',
-      price: '25,000',
-      rating: 4,
-      reviews: 816,
-      image: '/monitor-category.png'
-    },
-    {
-      name: 'DELL OPTIPLEX 5050MT C17 Desktop',
-      desc: 'DELL OPTIPLEX 5050MT C17, 6TH GEN, 8GB, 256GB',
-      price: '108,500',
-      rating: 5,
-      reviews: 647,
-      image: '/laptop-category.jpg'
-    },
-    {
-      name: 'DELL LED SE2222H Monitor',
-      desc: 'DELL LED SE2222H NEW',
-      price: '22,000',
-      oldPrice: '30,000',
-      rating: 4.5,
-      reviews: 877,
-      image: '/monitor-category.png',
-      label: { text: '25% OFF', color: 'bg-yellow-400 text-black' }
-    },
-    {
-      name: 'DELL VOSTRO 3020 C13 Desktop',
-      desc: 'DELL VOSTRO 3020 C13 13GEN 8GB 256GBSSD',
-      price: '108,000',
-      rating: 5,
-      reviews: 426,
-      image: '/laptop-category.jpg'
-    },
-    {
-      name: 'Lenovo IdeaPad Slim 315 Laptop',
-      desc: 'Lenovo IdeaPad Slim 315 - 13th Gen Core i7 13620H',
-      price: '106,000',
-      rating: 5,
-      reviews: 583,
-      image: '/laptop-category.jpg',
-      label: { text: 'SALE', color: 'bg-green-500' }
+  const parsePrice = (value) => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number' && !Number.isNaN(value)) return value;
+    if (typeof value === 'string') {
+      const digits = value.replace(/[^0-9.-]/g, '');
+      const parsed = Number(digits);
+      return Number.isNaN(parsed) ? 0 : parsed;
     }
-  ];
+    return 0;
+  };
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const [laptopsRes, printersRes] = await Promise.all([
+          fetch(`${API_BASE}/api/laptops?limit=8`),
+          fetch(`${API_BASE}/api/printers?limit=8`),
+        ]);
+
+        if (laptopsRes.ok) {
+          const laptopsJson = await laptopsRes.json();
+          setLaptopData(Array.isArray(laptopsJson) ? laptopsJson : []);
+        }
+
+        if (printersRes.ok) {
+          const printersJson = await printersRes.json();
+          setPrinterData(Array.isArray(printersJson) ? printersJson : []);
+        }
+      } catch (error) {
+        console.error('Featured products fetch error:', error);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  const normalizeProduct = (item, type) => {
+    if (!item) return null;
+    const imageArray = Array.isArray(item.image_urls)
+      ? item.image_urls.filter((url) => typeof url === 'string' && url.trim())
+      : [];
+    const image = imageArray[0] || item.image || (type === 'printer' ? '/printer-category.png' : '/laptop-category.jpg');
+    const priceValue = parsePrice(item.price);
+    const oldPriceValue = parsePrice(item.old_price);
+    return {
+      id: item.id,
+      name: item.name || 'Unnamed Product',
+      desc:
+        item.description ||
+        (type === 'printer'
+          ? [item.resolution, item.copyfeature, item.scanfeature, item.duplex].filter(Boolean).join(' • ')
+          : item.processor || item.graphics || 'No description available'),
+      price: priceValue.toLocaleString('en-PK'),
+      oldPrice: oldPriceValue ? oldPriceValue.toLocaleString('en-PK') : null,
+      rating: Number(item.rating) || 4.5,
+      reviews: Number(item.reviews) || 0,
+      image,
+      type,
+    };
+  };
+
+  const laptops = useMemo(() => {
+    if (!Array.isArray(laptopData)) return [];
+    return laptopData
+      .map((item) => normalizeProduct(item, 'laptop'))
+      .filter(Boolean)
+      .slice(0, 8);
+  }, [laptopData]);
+
+  const printers = useMemo(() => {
+    if (!Array.isArray(printerData)) return [];
+    return printerData
+      .map((item) => normalizeProduct(item, 'printer'))
+      .filter(Boolean)
+      .slice(0, 8);
+  }, [printerData]);
+
+  const products = useMemo(() => {
+    switch (activeTab) {
+      case 'Laptop':
+        return laptops.slice(0, 8);
+      case 'Printers':
+        return printers.slice(0, 8);
+      case 'Desktops':
+        return laptops.filter((item) => (item.name || '').toLowerCase().includes('desktop')).slice(0, 8);
+      case 'LEDs':
+        return [...laptops, ...printers].filter((item) => (item.name || '').toLowerCase().includes('led')).slice(0, 8);
+      default:
+        return [...laptops.slice(0, 4), ...printers.slice(0, 4)].slice(0, 8);
+    }
+  }, [activeTab, laptops, printers]);
 
   const tabs = ['All Product', 'Printers', 'Laptop', 'Desktops', 'LEDs'];
 
@@ -108,7 +132,7 @@ const FeaturedProducts = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left Banner */}
           <div className="lg:col-span-1">
-            <div className="bg-gradient-to-b from-blue-900 to-black rounded-lg overflow-hidden h-full">
+            <div className="bg-linear-to-b from-blue-900 to-black rounded-lg overflow-hidden h-full">
               <div className="p-6 text-white">
                 <p className="text-xs uppercase tracking-wide mb-2">LAPTOPS & PRINTERS</p>
                 <h2 className="text-3xl font-bold mb-2">50% Discount</h2>
@@ -161,7 +185,7 @@ const FeaturedProducts = () => {
                   ))}
                 </div>
                 
-                <a href="#" className="text-[#00aeef] hover:text-[#0099d9] font-medium flex items-center gap-2 ml-auto">
+                <a href="/all-products" className="text-[#00aeef] hover:text-[#0099d9] font-medium flex items-center gap-2 ml-auto">
                   Browse All Product
                   <FiArrowRight />
                 </a>

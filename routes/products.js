@@ -73,6 +73,7 @@ const GENERAL_PRODUCT_COLUMNS = [
   'description',
   'image',
   'image_urls',
+  'featured',
 ];
 
 const LAPTOP_ALLOWED_COLUMNS = [
@@ -84,6 +85,46 @@ const PRINTER_ALLOWED_COLUMNS = [
   ...GENERAL_PRODUCT_COLUMNS,
   ...Object.values(PRINTER_SPEC_MAP),
 ];
+
+const parseOptionalBoolean = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
+  }
+  return null;
+};
+
+const ensureFeaturedLimit = async (tableName, shouldBeFeatured, excludeId = null) => {
+  if (!shouldBeFeatured) return;
+
+  let query = supabase
+    .from(tableName)
+    .select('id', { count: 'exact', head: true })
+    .eq('featured', true);
+
+  if (excludeId !== null && excludeId !== undefined) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { count, error } = await query;
+  if (error) {
+    throw error;
+  }
+
+  if ((count || 0) >= 3) {
+    const limitError = new Error('You can feature at most 3 products in this category.');
+    limitError.statusCode = 400;
+    throw limitError;
+  }
+};
 
 const LAPTOP_REQUIRED_COLUMNS = ['name', 'brand', 'price'];
 const PRINTER_REQUIRED_COLUMNS = ['name', 'brand', 'price'];
@@ -227,6 +268,14 @@ const sanitizeCsvRow = (row, columnLookup) => {
       return;
     }
 
+    if (column === 'featured') {
+      const parsed = parseOptionalBoolean(rawValue);
+      if (parsed !== null) {
+        sanitized[column] = parsed;
+      }
+      return;
+    }
+
     const value = coerceCsvValue(rawValue);
     if (value === null) return;
     sanitized[column] = value;
@@ -304,6 +353,9 @@ router.post('/', upload.array('images', 10), async (req, res) => {
       return res.status(400).json({ error: 'Brand is required.' });
     }
 
+    const requestedFeatured = parseOptionalBoolean(req.body.featured);
+    const featuredFlag = requestedFeatured === null ? false : requestedFeatured;
+
     const specsPayload = parseSpecsPayload(req.body.specs);
     const specs = mapSpecs(category, specsPayload);
 
@@ -320,11 +372,16 @@ router.post('/', upload.array('images', 10), async (req, res) => {
 
     const tableName = category === 'printer' ? 'printers' : 'laptops';
 
+    if (tableName === 'laptops') {
+      await ensureFeaturedLimit(tableName, featuredFlag);
+    }
+
     const insertPayload = {
       ...details,
       ...specs,
       image: coverUrl,
       image_urls: urls,
+      featured: featuredFlag,
     };
 
     const { data, error } = await supabase
@@ -347,7 +404,11 @@ router.post('/', upload.array('images', 10), async (req, res) => {
     res.status(201).json({ product: data });
   } catch (err) {
     console.error('Unexpected error creating product:', err);
-    res.status(500).json({ error: err?.message || 'Internal server error.' });
+    if (err?.statusCode === 400) {
+      res.status(400).json({ error: err.message });
+    } else {
+      res.status(500).json({ error: err?.message || 'Internal server error.' });
+    }
   }
 });
 
@@ -436,9 +497,23 @@ router.post('/bulk/csv', upload.single('file'), async (req, res) => {
 
     for (const row of sanitizedRows) {
       try {
+        const payload = {
+          ...row.payload,
+        };
+
+        if (payload.featured === undefined || payload.featured === null) {
+          payload.featured = false;
+        } else {
+          payload.featured = Boolean(payload.featured);
+        }
+
+        if (payload.featured) {
+          await ensureFeaturedLimit(tableName, true);
+        }
+
         const { data, error } = await supabase
           .from(tableName)
-          .insert(row.payload)
+          .insert(payload)
           .select('*')
           .single();
 
@@ -560,12 +635,20 @@ router.patch('/:category/:id', upload.array('images', 10), async (req, res) => {
 
     const tableName = category === 'printer' ? 'printers' : 'laptops';
 
+    if (requestedFeatured !== null && tableName === 'laptops' && requestedFeatured === true) {
+      await ensureFeaturedLimit(tableName, true, lookupId);
+    }
+
     const updatePayload = {
       ...details,
       ...specs,
       image: coverImage,
       image_urls: finalImages,
     };
+
+    if (requestedFeatured !== null) {
+      updatePayload.featured = requestedFeatured;
+    }
 
     const { data, error } = await supabase
       .from(tableName)
@@ -588,7 +671,11 @@ router.patch('/:category/:id', upload.array('images', 10), async (req, res) => {
     res.json({ product: data });
   } catch (err) {
     console.error('Unexpected error updating product:', err);
-    res.status(500).json({ error: err?.message || 'Internal server error.' });
+    if (err?.statusCode === 400) {
+      res.status(400).json({ error: err.message });
+    } else {
+      res.status(500).json({ error: err?.message || 'Internal server error.' });
+    }
   }
 });
 

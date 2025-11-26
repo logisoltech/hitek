@@ -20,14 +20,12 @@ const LoginPopup = ({ isOpen, onClose }) => {
     setLoading(true);
 
     try {
-      // Validate inputs
       if (!email || !password) {
         setError('Please fill in all fields');
         setLoading(false);
         return;
       }
 
-      // Try backend API first (for custom users table)
       try {
         let response;
         try {
@@ -52,7 +50,6 @@ const LoginPopup = ({ isOpen, onClose }) => {
           throw fetchError;
         }
 
-        // Check if response is ok before parsing JSON
         let data;
         try {
           data = await response.json();
