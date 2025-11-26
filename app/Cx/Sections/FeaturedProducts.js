@@ -2,11 +2,166 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { FaHeart, FaShoppingCart } from 'react-icons/fa';
+import Link from 'next/link';
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { CiShoppingCart, CiHeart } from 'react-icons/ci';
 import { FaRegEye } from "react-icons/fa6";
 import { FiArrowRight } from 'react-icons/fi';
 import { openSans } from '../Font/font';
+import ProductModal from '../Components/ProductModal';
+import { useCart } from '../Providers/CartProvider';
+
+const placeholderImage = {
+  laptop: '/laptop-category.jpg',
+  printer: '/printer-category.png',
+};
+
+const renderStars = (rating) => {
+  const safeRating = typeof rating === 'number' ? rating : 4.5;
+  const stars = [];
+  const fullStars = Math.floor(safeRating);
+  const hasHalfStar = safeRating % 1 !== 0;
+
+  for (let i = 0; i < fullStars; i++) {
+    stars.push(<span key={`full-${i}`}>★</span>);
+  }
+  if (hasHalfStar) {
+    stars.push(<span key="half">☆</span>);
+  }
+  for (let i = stars.length; i < 5; i++) {
+    stars.push(<span key={`empty-${i}`} className="text-gray-300">☆</span>);
+  }
+  return stars;
+};
+
+const FeaturedProductCard = ({ product, onPreview, onAddToCart }) => {
+  const productType = (product.type || 'laptop').toLowerCase();
+  const productId = product.id ? encodeURIComponent(product.id) : '';
+  const href = productId
+    ? `/product/${productId}?type=${encodeURIComponent(productType)}`
+    : '/all-products';
+  const images = Array.isArray(product.imageUrls) && product.imageUrls.length
+    ? product.imageUrls
+    : [product.image || placeholderImage[productType] || placeholderImage.laptop];
+  const [activeImage, setActiveImage] = useState(0);
+
+  const handlePrev = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveImage((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  const handleNext = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveImage((prev) => (prev + 1) % images.length);
+  };
+
+  const handleDotSelect = (event, index) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveImage(index);
+  };
+
+  return (
+    <Link
+      href={href}
+      className="relative bg-white border border-gray-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
+    >
+      {product.label && (
+        <div className={`absolute top-2 left-2 ${product.label.color} text-white text-xs font-bold px-2 py-1 rounded z-10`}>
+          {product.label.text}
+        </div>
+      )}
+
+      <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+          <CiHeart className="text-lg" />
+        </div>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            onAddToCart?.(product);
+          }}
+          className="bg-white rounded-full p-2 hover:bg-gray-100"
+        >
+          <CiShoppingCart className="text-lg" />
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            onPreview?.(product);
+          }}
+          className="bg-white rounded-full p-2 hover:bg-gray-100"
+        >
+          <FaRegEye className="text-lg" />
+        </button>
+      </div>
+
+      <div className="relative w-full h-40 flex items-center justify-center p-4 bg-white">
+        <Image
+          src={images[activeImage] || placeholderImage[productType] || placeholderImage.laptop}
+          alt={product.name}
+          width={160}
+          height={160}
+          className="object-contain max-h-full max-w-full"
+        />
+
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={handlePrev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 border border-gray-200 text-gray-600 rounded-full p-1 hover:bg-white"
+              aria-label="Previous product image"
+            >
+              <FaChevronLeft className="text-xs" />
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 border border-gray-200 text-gray-600 rounded-full p-1 hover:bg-white"
+              aria-label="Next product image"
+            >
+              <FaChevronRight className="text-xs" />
+            </button>
+
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white/80 rounded-full px-2 py-1">
+              {images.map((_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={(event) => handleDotSelect(event, index)}
+                  className={`w-2 h-2 rounded-full transition ${
+                    index === activeImage ? 'bg-[#00aeef]' : 'bg-gray-300 hover:bg-gray-400'
+                  }`}
+                  aria-label={`Show image ${index + 1}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="p-4 flex flex-col flex-1">
+        <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
+          {renderStars(product.rating)}
+          <span className="text-gray-600 text-xs ml-1">({product.reviews})</span>
+        </div>
+        <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
+        <p className="text-xs text-gray-600 mb-2 line-clamp-2 flex-1">{product.desc}</p>
+        <div className="flex items-baseline gap-2 mt-auto">
+          <span className="text-base font-bold text-gray-900">Rs. {product.price}</span>
+          {product.oldPrice && (
+            <span className="text-sm text-gray-400 line-through">Rs. {product.oldPrice}</span>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+};
 
 const API_BASE = 'https://hitek-server.onrender.com';
 
@@ -14,6 +169,9 @@ const FeaturedProducts = () => {
   const [activeTab, setActiveTab] = useState('All Product');
   const [laptopData, setLaptopData] = useState([]);
   const [printerData, setPrinterData] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const { addToCart } = useCart();
 
   const parsePrice = (value) => {
     if (value === null || value === undefined) return 0;
@@ -72,6 +230,8 @@ const FeaturedProducts = () => {
       rating: Number(item.rating) || 4.5,
       reviews: Number(item.reviews) || 0,
       image,
+      imageUrls: imageArray,
+      rawPrice: priceValue,
       type,
     };
   };
@@ -92,39 +252,37 @@ const FeaturedProducts = () => {
       .slice(0, 8);
   }, [printerData]);
 
-  const products = useMemo(() => {
+  const allProducts = useMemo(() => {
+    const map = new Map();
+    [...laptops, ...printers].forEach((product) => {
+      const key = product.id || `${product.name}-${product.type}`;
+      if (!map.has(key)) {
+        map.set(key, product);
+      }
+    });
+    return Array.from(map.values());
+  }, [laptops, printers]);
+
+  const displayProducts = useMemo(() => {
     switch (activeTab) {
       case 'Laptop':
         return laptops.slice(0, 8);
       case 'Printers':
         return printers.slice(0, 8);
       case 'Desktops':
-        return laptops.filter((item) => (item.name || '').toLowerCase().includes('desktop')).slice(0, 8);
+        return allProducts
+          .filter((item) => (item.name || '').toLowerCase().includes('desktop'))
+          .slice(0, 8);
       case 'LEDs':
-        return [...laptops, ...printers].filter((item) => (item.name || '').toLowerCase().includes('led')).slice(0, 8);
+        return allProducts
+          .filter((item) => (item.name || '').toLowerCase().includes('led'))
+          .slice(0, 8);
       default:
-        return [...laptops.slice(0, 4), ...printers.slice(0, 4)].slice(0, 8);
+        return allProducts.slice(0, 8);
     }
-  }, [activeTab, laptops, printers]);
+  }, [activeTab, laptops, printers, allProducts]);
 
   const tabs = ['All Product', 'Printers', 'Laptop', 'Desktops', 'LEDs'];
-
-  const renderStars = (rating) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(<span key={i}>★</span>);
-    }
-    if (hasHalfStar) {
-      stars.push(<span key="half">☆</span>);
-    }
-    for (let i = stars.length; i < 5; i++) {
-      stars.push(<span key={i} className="text-gray-300">☆</span>);
-    }
-    return stars;
-  };
 
   return (
     <div className={`w-full py-8 lg:py-12 bg-white ${openSans.className}`}>
@@ -193,60 +351,39 @@ const FeaturedProducts = () => {
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {products.map((product, index) => (
-                <div
-                  key={index}
-                  className="relative bg-white border border-gray-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
-                >
-                  {product.label && (
-                    <div className={`absolute top-2 left-2 ${product.label.color} text-white text-xs font-bold px-2 py-1 rounded z-10`}>
-                      {product.label.text}
-                    </div>
-                  )}
-
-                  {/* Hover icons */}
-                  <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                      <CiHeart className="text-lg" />
-                    </div>
-                    <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                      <CiShoppingCart className="text-lg" />
-                    </div>
-                    <div className="bg-white rounded-full p-2 hover:bg-gray-100">
-                      <FaRegEye className="text-lg" />
-                    </div>
-                  </div>
-
-                  <div className="w-full h-40 flex items-center justify-center p-4 bg-white">
-                    <Image
-                      src={product.image}
-                      alt={product.name}
-                      width={120}
-                      height={120}
-                      className="object-contain"
-                    />
-                  </div>
-
-                  <div className="p-4 flex flex-col flex-1">
-                    <div className="flex items-center gap-1 text-yellow-400 mb-2 text-sm">
-                      {renderStars(product.rating)}
-                      <span className="text-gray-600 text-xs ml-1">({product.reviews})</span>
-                    </div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
-                    <p className="text-xs text-gray-600 mb-2 line-clamp-2 flex-1">{product.desc}</p>
-                    <div className="flex items-baseline gap-2 mt-auto">
-                      <span className="text-base font-bold text-gray-900">Rs. {product.price}</span>
-                      {product.oldPrice && (
-                        <span className="text-sm text-gray-400 line-through">Rs. {product.oldPrice}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              {displayProducts.map((product) => (
+                <FeaturedProductCard
+                  key={product.id || `${product.name}-${product.type}`}
+                  product={product}
+                  onPreview={(item) => {
+                    setSelectedProduct(item);
+                    setIsModalOpen(true);
+                  }}
+                  onAddToCart={(item) => {
+                    if (!item) return;
+                    const fallbackId = item.id || `${item.type || 'product'}-${item.name}`;
+                    addToCart({
+                      id: fallbackId,
+                      name: item.name,
+                      price: Number(item.rawPrice || 0),
+                      image: item.image,
+                      type: item.type,
+                    });
+                  }}
+                />
               ))}
             </div>
           </div>
         </div>
       </div>
+      <ProductModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+      />
     </div>
   );
 };

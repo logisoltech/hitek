@@ -50,12 +50,12 @@ const Footer = () => {
           <div>
             <h3 className="text-blue-500 font-bold text-lg mb-4">Information</h3>
             <ul className="space-y-2">
-              <li><Link href="#" className="hover:text-blue-400 transition">Delivery</Link></li>
+              <li><Link href="#" className="hover:text-blue-400 transition">Privacy Policy</Link></li>
               <li><Link href="#" className="hover:text-blue-400 transition">About us</Link></li>
               <li><Link href="#" className="hover:text-blue-400 transition">Secure payment</Link></li>
               <li><Link href="#" className="hover:text-blue-400 transition">Contact us</Link></li>
-              <li><Link href="#" className="hover:text-blue-400 transition">Sitemap</Link></li>
-              <li><Link href="#" className="hover:text-blue-400 transition">Stores</Link></li>
+              <li><Link href="#" className="hover:text-blue-400 transition">Terms & Conditions</Link></li>
+              <li><Link href="#" className="hover:text-blue-400 transition">Refund & Cancellation Policy</Link></li>
             </ul>
           </div>
 
@@ -63,9 +63,9 @@ const Footer = () => {
           <div>
             <h3 className="text-blue-500 font-bold text-lg mb-4">Important Links</h3>
             <ul className="space-y-2">
-              <li><Link href="#" className="hover:text-blue-400 transition">Legal Notice</Link></li>
-              <li><Link href="#" className="hover:text-blue-400 transition">Prices drop</Link></li>
-              <li><Link href="#" className="hover:text-blue-400 transition">New products</Link></li>
+              <li><Link href="#" className="hover:text-blue-400 transition">Delivery</Link></li>
+              <li><Link href="#" className="hover:text-blue-400 transition">Sitemap</Link></li>
+              <li><Link href="#" className="hover:text-blue-400 transition">Stores</Link></li>
               <li><Link href="#" className="hover:text-blue-400 transition">Best sales</Link></li>
               <li><Link href="#" className="hover:text-blue-400 transition">Login</Link></li>
               <li><Link href="#" className="hover:text-blue-400 transition">My account</Link></li>

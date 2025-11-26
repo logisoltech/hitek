@@ -11,12 +11,14 @@ import { CiHeart, CiShoppingCart } from 'react-icons/ci';
 import { FaRegEye } from 'react-icons/fa6';
 import { FiArrowRight } from 'react-icons/fi';
 import { openSans } from '../Cx/Font/font';
+import ProductModal from '../Cx/Components/ProductModal';
+import { useCart } from '../Cx/Providers/CartProvider';
 
 export default function AllProducts() {
-  const [selectedCategory, setSelectedCategory] = useState('Laptops');
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [priceRange, setPriceRange] = useState({ min: 150000, max: 200000 });
   const [selectedPriceRange, setSelectedPriceRange] = useState('150000-200000');
-  const [activeFilters, setActiveFilters] = useState(['Laptops', 'Core i7']);
+  const [activeFilters, setActiveFilters] = useState(['Core i7']);
   const [sortBy, setSortBy] = useState('Most Popular');
   const [selectedTags, setSelectedTags] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -24,6 +26,9 @@ export default function AllProducts() {
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [fetchError, setFetchError] = useState('');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewProduct, setPreviewProduct] = useState(null);
+  const { addToCart } = useCart();
 
   const parseNumeric = (value, fallback = 0) => {
     if (value === null || value === undefined) return fallback;
@@ -144,7 +149,9 @@ export default function AllProducts() {
 
   useEffect(() => {
     setActiveFilters((prev) => {
-      const withoutCategories = prev.filter((filter) => filter !== 'Laptops' && filter !== 'Printers');
+      const categoryFilters = ['Laptops', 'Printers'];
+      const withoutCategories = prev.filter((filter) => !categoryFilters.includes(filter));
+      if (!selectedCategory) return withoutCategories;
       return [selectedCategory, ...withoutCategories];
     });
   }, [selectedCategory]);
@@ -157,7 +164,7 @@ export default function AllProducts() {
     if (selectedCategory === 'Printers') {
       return products.filter((product) => product.category === 'Printers');
     }
-    return [];
+    return products;
   }, [products, selectedCategory]);
 
   const formatCurrency = (value) =>
@@ -239,7 +246,7 @@ export default function AllProducts() {
     );
   };
 
-  const ProductCard = ({ product }) => {
+  const ProductCard = ({ product, onPreview, onAddToCart }) => {
     const productType = (product.type || 'laptop').toLowerCase();
     const productId = product.id ? encodeURIComponent(product.id) : '';
     const productHref = productId ? `/product/${productId}?type=${encodeURIComponent(productType)}` : '#';
@@ -277,12 +284,26 @@ export default function AllProducts() {
           <div className="bg-white rounded-full p-2 hover:bg-gray-100">
             <CiHeart className="text-lg" />
           </div>
-          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              onAddToCart?.(product);
+            }}
+            className="bg-white rounded-full p-2 hover:bg-gray-100"
+          >
             <CiShoppingCart className="text-lg" />
-          </div>
-          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              onPreview?.(product);
+            }}
+            className="bg-white rounded-full p-2 hover:bg-gray-100"
+          >
             <FaRegEye className="text-lg" />
-          </div>
+          </button>
         </div>
 
         <div className="relative w-full h-40 flex items-center justify-center p-4 bg-white">
@@ -605,6 +626,20 @@ export default function AllProducts() {
                       <ProductCard
                         key={product.cartId || `${product.type}-${product.id}`}
                         product={product}
+                        onPreview={(item) => {
+                          setPreviewProduct(item);
+                          setPreviewOpen(true);
+                        }}
+                        onAddToCart={(item) => {
+                          if (!item) return;
+                          addToCart({
+                            id: item.cartId || item.id,
+                            name: item.name,
+                            price: item.price,
+                            image: item.image,
+                            type: item.type,
+                          });
+                        }}
                       />
                     ))}
                   </div>
@@ -647,6 +682,15 @@ export default function AllProducts() {
       </div>
 
       <Footer />
+
+      <ProductModal
+        isOpen={previewOpen}
+        onClose={() => {
+          setPreviewOpen(false);
+          setPreviewProduct(null);
+        }}
+        product={previewProduct}
+      />
     </div>
   );
 }

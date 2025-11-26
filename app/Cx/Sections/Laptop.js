@@ -2,10 +2,12 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { FaChevronLeft, FaChevronRight, FaRegEye } from 'react-icons/fa';
 import { CiShoppingCart, CiHeart } from 'react-icons/ci';
 import { openSans } from '../Font/font';
 import ProductModal from '../Components/ProductModal';
+import { useCart } from '../Providers/CartProvider';
 
 const Laptop = () => {
   const scrollContainerRef = useRef(null);
@@ -14,6 +16,7 @@ const Laptop = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { addToCart } = useCart();
 
   const scrollLeft = () => {
     if (scrollContainerRef.current) {
@@ -107,7 +110,7 @@ const Laptop = () => {
     return stars;
   };
 
-  const handleProductClick = (product) => {
+  const handlePreview = (product) => {
     setSelectedProduct(product);
     setIsModalOpen(true);
   };
@@ -115,6 +118,17 @@ const Laptop = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
+  };
+
+  const handleAddToCart = (item) => {
+    if (!item) return;
+    addToCart({
+      id: item.cartId || item.id,
+      name: item.name,
+      price: item.price,
+      image: item.image,
+      type: item.type,
+    });
   };
 
   const renderCardImage = (src, alt, className, size = { width: 160, height: 160 }) => {
@@ -144,6 +158,11 @@ const Laptop = () => {
       ? product.imageUrls
       : [product.image || '/laptop-category.jpg'];
     const [activeImage, setActiveImage] = useState(0);
+    const productType = (product.type || 'laptop').toLowerCase();
+    const productId = product.id ? encodeURIComponent(product.id) : '';
+    const productHref = productId
+      ? `/product/${productId}?type=${encodeURIComponent(productType)}`
+      : '/all-products';
 
     const handlePrev = (event) => {
       event.preventDefault();
@@ -164,9 +183,9 @@ const Laptop = () => {
     };
 
     return (
-      <div
+      <Link
         key={product.id}
-        onClick={() => handleProductClick(product)}
+        href={productHref}
         className="relative bg-white border border-gray-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer flex flex-col shrink-0 w-[234px] h-[320px]"
       >
         {product.label && (
@@ -177,17 +196,30 @@ const Laptop = () => {
 
         <div
           className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-          onClick={(e) => e.stopPropagation()}
         >
           <div className="bg-white rounded-full p-2 hover:bg-gray-100">
             <CiHeart className="text-lg" />
           </div>
-          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              handleAddToCart(product);
+            }}
+            className="bg-white rounded-full p-2 hover:bg-gray-100"
+          >
             <CiShoppingCart className="text-lg" />
-          </div>
-          <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              handlePreview(product);
+            }}
+            className="bg-white rounded-full p-2 hover:bg-gray-100"
+          >
             <FaRegEye className="text-lg" />
-          </div>
+          </button>
         </div>
 
         <div className="relative w-full h-40 flex items-center justify-center p-4 bg-white">
@@ -253,7 +285,7 @@ const Laptop = () => {
             </span>
           </div>
         </div>
-      </div>
+      </Link>
     );
   };
 

@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -29,6 +30,8 @@ const parseNumeric = (value, fallback = 0) => {
 
 export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState([]);
+  const [feedback, setFeedback] = useState(null);
+  const feedbackTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -61,6 +64,31 @@ export const CartProvider = ({ children }) => {
     }
   }, [cartItems]);
 
+  const showFeedback = useCallback((item) => {
+    if (!item) return;
+    const message = {
+      name: (item.name || 'Product').toString(),
+      quantity: parseNumeric(item.quantity, 1),
+    };
+
+    setFeedback(message);
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+    feedbackTimeoutRef.current = setTimeout(() => {
+      setFeedback(null);
+    }, 2400);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   const addToCart = useCallback((rawItem, quantity = 1) => {
     if (!rawItem) return;
     const normalizedId = normalizeId(rawItem.id);
@@ -86,7 +114,9 @@ export const CartProvider = ({ children }) => {
       }
       return [...prev, normalizedItem];
     });
-  }, []);
+
+    showFeedback({ ...normalizedItem, id: normalizedId });
+  }, [showFeedback]);
 
   const updateQuantity = useCallback((id, quantity) => {
     const normalizedId = normalizeId(id);
@@ -132,7 +162,21 @@ export const CartProvider = ({ children }) => {
     [cartItems, cartCount, cartSubtotal, addToCart, updateQuantity, removeFromCart, clearCart],
   );
 
-  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+  return (
+    <CartContext.Provider value={value}>
+      {children}
+      {feedback && (
+        <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-2">
+          <div className="bg-gray-900/95 text-white px-5 py-3 rounded-md shadow-lg border border-white/10">
+            <p className="text-sm font-semibold">Added to cart</p>
+            <p className="text-xs text-gray-200 mt-1">
+              {feedback.quantity} × {feedback.name}
+            </p>
+          </div>
+        </div>
+      )}
+    </CartContext.Provider>
+  );
 };
 
 export const useCart = () => {

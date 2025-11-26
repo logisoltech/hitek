@@ -5,9 +5,11 @@ import Image from 'next/image';
 import { FaChevronLeft, FaChevronRight, FaRegEye } from 'react-icons/fa';
 import { CiShoppingCart, CiHeart } from 'react-icons/ci';
 import { openSans } from '../Font/font';
+import { useCart } from '../Providers/CartProvider';
 
 const LED = () => {
   const scrollContainerRef = useRef(null);
+  const { addToCart } = useCart();
 
   const scrollLeft = () => {
     if (scrollContainerRef.current) {
@@ -133,9 +135,22 @@ const LED = () => {
                   <div className="bg-white rounded-full p-2 hover:bg-gray-100">
                     <CiHeart className="text-lg" />
                   </div>
-                  <div className="bg-white rounded-full p-2 hover:bg-gray-100">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      addToCart({
+                        id: `led-${index}`,
+                        name: product.name,
+                        price: Number(String(product.price).replace(/[^0-9.-]/g, '')) || 0,
+                        image: product.image,
+                        type: 'led',
+                      });
+                    }}
+                    className="bg-white rounded-full p-2 hover:bg-gray-100"
+                  >
                     <CiShoppingCart className="text-lg" />
-                  </div>
+                  </button>
                   <div className="bg-white rounded-full p-2 hover:bg-gray-100">
                     <FaRegEye className="text-lg" />
                   </div>
