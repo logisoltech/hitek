@@ -8,6 +8,7 @@ import { CiShoppingCart, CiHeart } from 'react-icons/ci';
 import { openSans } from '../Font/font';
 import ProductModal from '../Components/ProductModal';
 import { useCart } from '../Providers/CartProvider';
+import { useImagePreloader } from '../hooks/useImagePreloader';
 
 const Laptop = () => {
   const scrollContainerRef = useRef(null);
@@ -157,6 +158,7 @@ const Laptop = () => {
     const images = Array.isArray(product.imageUrls) && product.imageUrls.length
       ? product.imageUrls
       : [product.image || '/laptop-category.jpg'];
+    useImagePreloader(images);
     const [activeImage, setActiveImage] = useState(0);
     const productType = (product.type || 'laptop').toLowerCase();
     const productId = product.id ? encodeURIComponent(product.id) : '';

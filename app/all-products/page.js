@@ -13,6 +13,7 @@ import { FiArrowRight } from 'react-icons/fi';
 import { openSans } from '../Cx/Font/font';
 import ProductModal from '../Cx/Components/ProductModal';
 import { useCart } from '../Cx/Providers/CartProvider';
+import { useImagePreloader } from '../Cx/hooks/useImagePreloader';
 
 export default function AllProducts() {
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -255,6 +256,7 @@ export default function AllProducts() {
     const images = Array.isArray(product.imageUrls) && product.imageUrls.length
       ? product.imageUrls
       : [product.image || (productType === 'printer' ? '/printer-category.png' : '/laptop-category.jpg')];
+    useImagePreloader(images);
     const [activeImage, setActiveImage] = useState(0);
 
     const handlePrev = (event) => {

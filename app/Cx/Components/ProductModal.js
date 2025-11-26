@@ -7,6 +7,7 @@ import { CiHeart } from 'react-icons/ci';
 import { FaCopy, FaPinterest } from 'react-icons/fa6';
 import { openSans } from '../Font/font';
 import { useCart } from '../Providers/CartProvider';
+import { useImagePreloader } from '../hooks/useImagePreloader';
 
 const DEFAULT_MEMORY_OPTIONS = ['8GB Unified Memory', '16GB Unified Memory', '24GB Unified Memory'];
 const DEFAULT_DISPLAY_OPTIONS = ['13-inch Retina Display', '14-inch Liquid Retina XDR', '16-inch Liquid Retina XDR'];
@@ -221,6 +222,8 @@ const ProductModal = ({ isOpen, onClose, product }) => {
     const fromSanitized = extractImageArray(source);
     return fromSanitized.length ? fromSanitized : ['/big-laptop.png'];
   }, [productData]);
+
+  useImagePreloader(productImages);
 
   const renderProductImage = (src, alt, className, size) => {
     if (src?.startsWith('http')) {

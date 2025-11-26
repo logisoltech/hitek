@@ -10,6 +10,7 @@ import { FiArrowRight } from 'react-icons/fi';
 import { openSans } from '../Font/font';
 import ProductModal from '../Components/ProductModal';
 import { useCart } from '../Providers/CartProvider';
+import { useImagePreloader } from '../hooks/useImagePreloader';
 
 const placeholderImage = {
   laptop: '/laptop-category.jpg',
@@ -43,6 +44,7 @@ const FeaturedProductCard = ({ product, onPreview, onAddToCart }) => {
   const images = Array.isArray(product.imageUrls) && product.imageUrls.length
     ? product.imageUrls
     : [product.image || placeholderImage[productType] || placeholderImage.laptop];
+  useImagePreloader(images);
   const [activeImage, setActiveImage] = useState(0);
 
   const handlePrev = (event) => {

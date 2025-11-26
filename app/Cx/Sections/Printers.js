@@ -8,6 +8,7 @@ import { CiShoppingCart, CiHeart } from 'react-icons/ci';
 import { openSans } from '../Font/font';
 import ProductModal from '../Components/ProductModal';
 import { useCart } from '../Providers/CartProvider';
+import { useImagePreloader } from '../hooks/useImagePreloader';
 
 const Printers = () => {
   const scrollContainerRef = useRef(null);
@@ -189,6 +190,7 @@ const Printers = () => {
     const images = Array.isArray(product.imageUrls) && product.imageUrls.length
       ? product.imageUrls
       : [product.image || '/printer-category.png'];
+    useImagePreloader(images);
     const [activeImage, setActiveImage] = useState(0);
     const productType = (product.type || 'printer').toLowerCase();
     const productId = product.id ? encodeURIComponent(product.id) : '';
