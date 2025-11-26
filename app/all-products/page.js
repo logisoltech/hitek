@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import Navbar from '../Cx/Layout/Navbar';
 import Footer from '../Cx/Layout/Footer';
 import { CiSearch } from 'react-icons/ci';
@@ -15,13 +16,28 @@ import ProductModal from '../Cx/Components/ProductModal';
 import { useCart } from '../Cx/Providers/CartProvider';
 import { useImagePreloader } from '../Cx/hooks/useImagePreloader';
 
-export default function AllProducts() {
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [priceRange, setPriceRange] = useState({ min: 150000, max: 200000 });
-  const [selectedPriceRange, setSelectedPriceRange] = useState('150000-200000');
-  const [activeFilters, setActiveFilters] = useState(['']);
-  const [sortBy, setSortBy] = useState('Price: Low to High');
+export function ProductsPage({
+  restrictToType = null,
+  pageTitle = 'All Products',
+  showCategoryFilter = true,
+} = {}) {
+  const searchParams = useSearchParams();
+  const PRICE_MIN = 0;
+  const PRICE_MAX = 500000;
+  const defaultCategory =
+    restrictToType === 'laptop'
+      ? 'Laptops'
+      : restrictToType === 'printer'
+        ? 'Printers'
+        : null;
+  const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
+
+  const [priceRange, setPriceRange] = useState({ min: PRICE_MIN, max: PRICE_MAX });
+  const [selectedPriceRange, setSelectedPriceRange] = useState('');
+  const [activeFilters, setActiveFilters] = useState(['Core i7']);
+  const [sortBy, setSortBy] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedBrands, setSelectedBrands] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
 
   const [products, setProducts] = useState([]);
@@ -30,6 +46,78 @@ export default function AllProducts() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewProduct, setPreviewProduct] = useState(null);
   const { addToCart } = useCart();
+
+  const FEATURED_BANNER_PRODUCT_ID = '12';
+
+  useEffect(() => {
+    const brandParam = searchParams?.get('brand');
+    const normalized = brandParam ? brandParam.trim() : '';
+
+    if (normalized) {
+      setSelectedBrands((prev) => {
+        if (prev.length === 1 && prev[0] === normalized) return prev;
+        return [normalized];
+      });
+      setSelectedCategory((prev) => (prev === 'Laptops' ? prev : 'Laptops'));
+      if (!sortBy) {
+        setSortBy('Price: Low to High');
+      }
+      if (selectedPriceRange !== 'all') {
+        setSelectedPriceRange('all');
+      }
+      setCurrentPage(1);
+    } else if (selectedBrands.length) {
+      setSelectedBrands([]);
+    }
+  }, [searchParams, sortBy, selectedPriceRange, selectedBrands.length]);
+
+  const clampPrice = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return PRICE_MIN;
+    return Math.min(Math.max(numeric, PRICE_MIN), PRICE_MAX);
+  };
+
+  const parsePriceRangeOption = (value) => {
+    if (!value) return null;
+    const normalized = value.toString().trim().toLowerCase();
+    if (normalized === 'all' || normalized === 'custom') {
+      return null;
+    }
+    const parts = normalized.split('-');
+    if (parts.length !== 2) return null;
+    const min = clampPrice(Number(parts[0]));
+    const max = clampPrice(Number(parts[1]));
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+    return {
+      min: Math.min(min, max),
+      max: Math.max(min, max),
+    };
+  };
+
+  const setCustomPriceRange = (changes) => {
+    setSelectedPriceRange('custom');
+    setPriceRange((prev) => {
+      const draft = {
+        min: clampPrice(changes.min !== undefined ? changes.min : prev.min),
+        max: clampPrice(changes.max !== undefined ? changes.max : prev.max),
+      };
+
+      if (draft.min > draft.max) {
+        if (changes.min !== undefined && changes.max === undefined) {
+          draft.max = draft.min;
+        } else if (changes.max !== undefined && changes.min === undefined) {
+          draft.min = draft.max;
+        } else {
+          const baseline = clampPrice(Math.min(draft.min, draft.max));
+          draft.min = baseline;
+          draft.max = baseline;
+        }
+      }
+
+      return draft;
+    });
+    setCurrentPage(1);
+  };
 
   const parseNumeric = (value, fallback = 0) => {
     if (value === null || value === undefined) return fallback;
@@ -90,6 +178,7 @@ export default function AllProducts() {
       sourceId: item.id,
       type,
       category: type === 'printer' ? 'Printers' : 'Laptops',
+      brand: typeof item.brand === 'string' ? item.brand.trim() : '',
       cartId: hasId ? `${type}-${rawId}` : undefined,
       price: hasPrice ? parsedPrice : 0,
       hasPrice,
@@ -140,6 +229,9 @@ export default function AllProducts() {
         if (sortParam) {
           url.searchParams.set('sort', sortParam);
         }
+        if (restrictToType) {
+          url.searchParams.set('category', restrictToType);
+        }
 
         const response = await fetch(url.toString());
         if (!response.ok) {
@@ -181,7 +273,43 @@ export default function AllProducts() {
     return () => {
       isMounted = false;
     };
-  }, [sortBy]);
+  }, [sortBy, restrictToType]);
+
+  useEffect(() => {
+    if (restrictToType === 'laptop') {
+      setSelectedCategory('Laptops');
+    } else if (restrictToType === 'printer') {
+      setSelectedCategory('Printers');
+    }
+  }, [restrictToType]);
+
+  useEffect(() => {
+    if (!selectedPriceRange || selectedPriceRange === 'custom') {
+      return;
+    }
+
+    if (selectedPriceRange === 'all') {
+      setPriceRange((prev) => {
+        if (prev.min === PRICE_MIN && prev.max === PRICE_MAX) {
+          return prev;
+        }
+        return { min: PRICE_MIN, max: PRICE_MAX };
+      });
+      setCurrentPage(1);
+      return;
+    }
+
+    const parsed = parsePriceRangeOption(selectedPriceRange);
+    if (parsed) {
+      setPriceRange((prev) => {
+        if (prev.min === parsed.min && prev.max === parsed.max) {
+          return prev;
+        }
+        return parsed;
+      });
+      setCurrentPage(1);
+    }
+  }, [selectedPriceRange]);
 
   useEffect(() => {
     setActiveFilters((prev) => {
@@ -192,19 +320,88 @@ export default function AllProducts() {
     });
   }, [selectedCategory]);
 
+  const normalizedBrandSelections = useMemo(
+    () => selectedBrands.map((brand) => brand.trim().toLowerCase()),
+    [selectedBrands],
+  );
+
   const filteredProducts = useMemo(() => {
     if (!products.length) return [];
-    if(selectedCategory == "All Products") {
-      return products;
-    }
-    if (selectedCategory === 'Laptops') {
-      return products.filter((product) => product.category === 'Laptops');
-    }
-    if (selectedCategory === 'Printers') {
-      return products.filter((product) => product.category === 'Printers');
-    }
-    return products;
-  }, [products, selectedCategory]);
+
+    const effectiveCategory =
+      restrictToType === 'laptop'
+        ? 'Laptops'
+        : restrictToType === 'printer'
+          ? 'Printers'
+          : selectedCategory;
+
+    const isAllCategory =
+      !effectiveCategory ||
+      effectiveCategory === 'All Products' ||
+      effectiveCategory === 'All Laptops';
+    const limitToLaptops =
+      effectiveCategory === 'Laptops' || effectiveCategory === 'All Laptops';
+    const limitToPrinters = effectiveCategory === 'Printers';
+    const isRecognizedCategory = isAllCategory || limitToLaptops || limitToPrinters;
+
+    const applyPriceFilter = Boolean(selectedPriceRange) && selectedPriceRange !== 'all';
+    const applyBrandFilter = normalizedBrandSelections.length > 0;
+    const minPrice = clampPrice(priceRange?.min ?? PRICE_MIN);
+    const maxPriceCandidate = clampPrice(priceRange?.max ?? PRICE_MAX);
+    const maxPrice = Math.max(minPrice, maxPriceCandidate);
+
+    return products.filter((product) => {
+      const matchesCategory =
+        isAllCategory ||
+        (limitToLaptops && product.category === 'Laptops') ||
+        (limitToPrinters && product.category === 'Printers') ||
+        !isRecognizedCategory;
+
+      if (!matchesCategory) {
+        return false;
+      }
+
+      if (applyBrandFilter) {
+        const productBrand = typeof product.brand === 'string' ? product.brand.trim().toLowerCase() : '';
+        if (!productBrand || !normalizedBrandSelections.includes(productBrand)) {
+          return false;
+        }
+      }
+
+      if (!applyPriceFilter) {
+        return true;
+      }
+
+      const numericPrice = Number(product.price);
+      if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+        return false;
+      }
+
+      return numericPrice >= minPrice && numericPrice <= maxPrice;
+    });
+  }, [products, selectedCategory, selectedPriceRange, priceRange, normalizedBrandSelections]);
+
+  const featuredBannerProduct = useMemo(() => {
+    if (!Array.isArray(products) || !products.length) return null;
+    return (
+      products.find((product) => {
+        const source = product?.sourceId ?? product?.id;
+        if (source === null || source === undefined) return false;
+        return source.toString() === FEATURED_BANNER_PRODUCT_ID;
+      }) || null
+    );
+  }, [products]);
+
+  const handleBannerAddToCart = useCallback(() => {
+    if (!featuredBannerProduct) return;
+    addToCart({
+      id: featuredBannerProduct.cartId || featuredBannerProduct.id,
+      name: featuredBannerProduct.name,
+      price: featuredBannerProduct.price,
+      image: featuredBannerProduct.image,
+      type: featuredBannerProduct.type,
+    });
+  }, [addToCart, featuredBannerProduct]);
 
   const formatCurrency = (value) =>
     (Number(value) || 0).toLocaleString('en-PK');
@@ -212,19 +409,30 @@ export default function AllProducts() {
   const formatNumber = (value) =>
     (Number(value) || 0).toLocaleString('en-US');
 
-  const categories = [
-    'All Products',
-    'Laptops',
-    'Desktop PCs',
-    'Printers',
-    'Scanners',
-    'LED Monitors',
-    'Printer Toners',
-    'Printer Cartridges',
-    'Refurbished Laptops',
-    'Refurbished Desktop PCs',
-    'Computer Accessories'
-  ];
+  const categories = useMemo(() => {
+    if (!showCategoryFilter) {
+      return [];
+    }
+    if (restrictToType === 'laptop') {
+      return ['Laptops'];
+    }
+    if (restrictToType === 'printer') {
+      return ['Printers'];
+    }
+    return [
+      'All Products',
+      'Laptops',
+      'Desktop PCs',
+      'Printers',
+      'Scanners',
+      'LED Monitors',
+      'Printer Toners',
+      'Printer Cartridges',
+      'Refurbished Laptops',
+      'Refurbished Desktop PCs',
+      'Computer Accessories',
+    ];
+  }, [restrictToType, showCategoryFilter]);
 
   const priceRanges = [
     { label: 'All Price', value: 'all' },
@@ -263,6 +471,18 @@ export default function AllProducts() {
   const removeFilter = (filter) => {
     setActiveFilters(activeFilters.filter(f => f !== filter));
   };
+
+  const handleBrandToggle = useCallback((brand) => {
+    const trimmed = brand.trim();
+    setSelectedBrands((prev) => {
+      const exists = prev.includes(trimmed);
+      if (exists) {
+        return prev.filter((item) => item !== trimmed);
+      }
+      return [...prev, trimmed];
+    });
+    setCurrentPage(1);
+  }, []);
 
   const renderProductImage = (src, alt, className, size = { width: 160, height: 160 }) => {
     if (src?.startsWith('http')) {
@@ -420,7 +640,7 @@ export default function AllProducts() {
             <div className="flex items-center px-4 gap-2 text-sm text-gray-600">
               <Link href="/" className="hover:text-[#00aeef] transition">Home</Link>
               <span>/</span>
-              <span className="text-gray-900 font-medium">All Products</span>
+              <span className="text-gray-900 font-medium">{pageTitle}</span>
             </div>
           </div>
         </div>
@@ -430,24 +650,26 @@ export default function AllProducts() {
             {/* Left Sidebar - Filters */}
             <div className="w-64 shrink-0 space-y-4 sticky top-4 h-fit">
               {/* Category */}
-              <div className="bg-white rounded-sm border border-gray-200 shadow-lg p-4">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">CATEGORY</h3>
-                <div className="space-y-2">
-                  {categories.map((category) => (
-                    <label key={category} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="category"
-                        value={category}
-                        checked={selectedCategory === category}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="w-4 h-4 text-[#00aeef] focus:ring-[#00aeef]"
-                      />
-                      <span className="text-sm text-gray-700">{category}</span>
-                    </label>
-                  ))}
+              {showCategoryFilter && categories.length > 0 && (
+                <div className="bg-white rounded-sm border border-gray-200 shadow-lg p-4">
+                  <h3 className="text-sm font-bold text-gray-900 mb-3">CATEGORY</h3>
+                  <div className="space-y-2">
+                    {categories.map((category) => (
+                      <label key={category} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="category"
+                          value={category}
+                          checked={selectedCategory === category}
+                          onChange={(e) => setSelectedCategory(e.target.value)}
+                          className="w-4 h-4 text-[#00aeef] focus:ring-[#00aeef]"
+                        />
+                        <span className="text-sm text-gray-700">{category}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Price Range */}
               <div className="bg-white rounded-sm border border-gray-200 shadow-lg p-4">
@@ -457,48 +679,48 @@ export default function AllProducts() {
                   <div className="px-2">
                     <div className="relative h-8">
                       <div className="absolute w-full h-2 bg-gray-200 rounded-sm top-3"></div>
-                      <div 
+                      <div
                         className="absolute h-2 bg-[#00aeef] rounded-sm top-3"
                         style={{
-                          left: `${(priceRange.min / 500000) * 100}%`,
-                          width: `${((priceRange.max - priceRange.min) / 500000) * 100}%`
+                          left: `${(priceRange.min / PRICE_MAX) * 100}%`,
+                          width: `${((priceRange.max - priceRange.min) / PRICE_MAX) * 100}%`
                         }}
                       ></div>
                       <input
                         type="range"
-                        min="0"
-                        max="500000"
+                        min={PRICE_MIN}
+                        max={PRICE_MAX}
                         step="10000"
                         value={priceRange.min}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (val < priceRange.max) {
-                            setPriceRange({ ...priceRange, min: val });
+                          const val = Number(e.target.value);
+                          if (Number.isFinite(val)) {
+                            setCustomPriceRange({ min: val });
                           }
                         }}
                         className="absolute top-0 w-full h-8 opacity-0 cursor-pointer z-20"
                       />
                       <input
                         type="range"
-                        min="0"
-                        max="500000"
+                        min={PRICE_MIN}
+                        max={PRICE_MAX}
                         step="10000"
                         value={priceRange.max}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (val > priceRange.min) {
-                            setPriceRange({ ...priceRange, max: val });
+                          const val = Number(e.target.value);
+                          if (Number.isFinite(val)) {
+                            setCustomPriceRange({ max: val });
                           }
                         }}
                         className="absolute top-0 w-full h-8 opacity-0 cursor-pointer z-30"
                       />
                       <div 
                         className="absolute top-2 w-4 h-4 bg-[#00aeef] rounded-full border-2 border-white shadow pointer-events-none"
-                        style={{ left: `calc(${(priceRange.min / 500000) * 100}% - 8px)` }}
+                        style={{ left: `calc(${(priceRange.min / PRICE_MAX) * 100}% - 8px)` }}
                       ></div>
                       <div 
                         className="absolute top-2 w-4 h-4 bg-[#00aeef] rounded-full border-2 border-white shadow pointer-events-none"
-                        style={{ left: `calc(${(priceRange.max / 500000) * 100}% - 8px)` }}
+                        style={{ left: `calc(${(priceRange.max / PRICE_MAX) * 100}% - 8px)` }}
                       ></div>
                     </div>
                     <div className="flex items-center justify-between mt-4 text-xs text-gray-600">
@@ -510,14 +732,20 @@ export default function AllProducts() {
                     <input
                       type="number"
                       value={priceRange.min}
-                      onChange={(e) => setPriceRange({ ...priceRange, min: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setCustomPriceRange({ min: Number.isFinite(val) ? val : PRICE_MIN });
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                       placeholder="Min price"
                     />
                     <input
                       type="number"
                       value={priceRange.max}
-                      onChange={(e) => setPriceRange({ ...priceRange, max: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setCustomPriceRange({ max: Number.isFinite(val) ? val : PRICE_MAX });
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                       placeholder="Max price"
                     />
@@ -536,6 +764,7 @@ export default function AllProducts() {
                         <span className="text-sm text-gray-700">{range.label}</span>
                       </label>
                     ))}
+                    
                   </div>
                 </div>
               </div>
@@ -548,7 +777,9 @@ export default function AllProducts() {
                     <label key={brand} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        className="w-4 h-4 text-[#00aeef] focus:ring-[#00aeef] rounded"
+                          checked={selectedBrands.includes(brand.trim())}
+                          onChange={() => handleBrandToggle(brand)}
+                          className="w-4 h-4 text-[#00aeef] focus:ring-[#00aeef] rounded"
                       />
                       <span className="text-sm text-gray-700">{brand}</span>
                     </label>
@@ -558,32 +789,61 @@ export default function AllProducts() {
 
               {/* Featured Laptop Banner */}
               <div className="bg-white rounded-sm p-4 mb-14 border border-gray-300 shadow-lg">
-                <div className="mb-3">
-                  <Image
-                    src="/laptop-category.jpg"
-                    alt="Lenovo Laptop"
-                    width={200}
-                    height={150}
-                    className="w-full h-auto object-contain"
-                  />
-                </div>
-                <div className="text-center mb-3">
-                  <p className="text-lg font-bold text-black mb-1">Heavy on Features.</p>
-                  <p className="text-lg font-bold text-black mb-3">Light on Price.</p>
-                  <div className="bg-yellow-400 text-black text-xs font-bold px-3 py-1.5 inline-block mb-3">
-                    Only for: PKR 200,000
+                {featuredBannerProduct ? (
+                  <>
+                    <div className="mb-3 flex items-center justify-center">
+                      {renderProductImage(
+                        featuredBannerProduct.image,
+                        featuredBannerProduct.name,
+                        'w-full h-auto object-contain max-h-48',
+                        { width: 220, height: 180 },
+                      )}
+                    </div>
+                    <div className="text-center mb-3">
+                      <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">
+                        Featured Pick
+                      </p>
+                      <p className="text-lg font-bold text-black mb-1 line-clamp-2">
+                        {featuredBannerProduct.name}
+                      </p>
+                      <p className="text-sm text-gray-600 mb-3 line-clamp-3">
+                        {featuredBannerProduct.description}
+                      </p>
+                      <div className="bg-yellow-400 text-black text-xs font-bold px-3 py-1.5 inline-block mb-3 rounded">
+                        ONLY FOR: PKR {formatCurrency(featuredBannerProduct.price)}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleBannerAddToCart}
+                        className="w-full bg-[#00aeef] hover:bg-[#0099d9] text-white px-4 py-2 rounded-sm font-semibold transition flex items-center justify-center gap-2"
+                      >
+                        <CiShoppingCart className="text-lg" />
+                        Add to Cart
+                      </button>
+                      <Link
+                        href={
+                          featuredBannerProduct.id
+                            ? `/product/${encodeURIComponent(featuredBannerProduct.id)}?type=${encodeURIComponent(featuredBannerProduct.type || 'laptop')}`
+                            : '/all-products'
+                        }
+                        className="w-full border-2 border-[#00aeef] text-[#00aeef] hover:bg-[#00aeef] hover:text-white px-4 py-2 rounded-sm font-semibold transition flex items-center justify-center gap-2"
+                      >
+                        View Details
+                        <FiArrowRight />
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm uppercase tracking-wide text-gray-500 mb-2">
+                      Featured Pick
+                    </p>
+                    <p className="text-lg font-semibold text-gray-700">
+                      Loading featured product...
+                    </p>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <button className="w-full bg-[#00aeef] hover:bg-[#0099d9] text-white px-4 py-2 rounded-sm font-semibold transition flex items-center justify-center gap-2">
-                    <CiShoppingCart className="text-lg" />
-                    ADD TO CART
-                  </button>
-                  <button className="w-full border-2 border-[#00aeef] text-[#00aeef] hover:bg-[#00aeef] hover:text-white px-4 py-2 rounded-sm font-semibold transition flex items-center justify-center gap-2">
-                    VIEW DETAILS
-                    <FiArrowRight />
-                  </button>
-                </div>
+                )}
               </div>
             </div>
 
@@ -614,9 +874,11 @@ export default function AllProducts() {
                       onChange={(e) => setSortBy(e.target.value)}
                       className="px-4 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#00aeef]"
                     >
+                      <option value="">Select sorting option</option>
                       <option>Price: Low to High</option>
                       <option>Price: High to Low</option>
                     </select>
+                    
                   </div>
                 </div>
 
@@ -732,4 +994,8 @@ export default function AllProducts() {
       />
     </div>
   );
+}
+
+export default function AllProductsPage() {
+  return <ProductsPage />;
 }

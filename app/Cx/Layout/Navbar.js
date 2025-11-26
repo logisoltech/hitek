@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { FiArrowRight } from 'react-icons/fi';
 import { 
   FaFacebook,
@@ -38,6 +39,7 @@ import { useCart } from '../Providers/CartProvider';
 
 
 const Navbar = () => {
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCartHovered, setIsCartHovered] = useState(false);
   const [isProfileHovered, setIsProfileHovered] = useState(false);
@@ -403,7 +405,10 @@ const Navbar = () => {
                               <div className="w-40 shrink-0">
                                 <div className="space-y-1">
                                   <button
-                                    onClick={() => setSelectedBrand('All')}
+                                    onClick={() => {
+                                      setSelectedBrand('All');
+                                      router.replace('/laptops');
+                                    }}
                                     className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
                                       selectedBrand === 'All' ? 'bg-gray-100' : 'hover:bg-gray-100'
                                     }`}
@@ -411,7 +416,10 @@ const Navbar = () => {
                                     All
                                   </button>
                                   <button
-                                    onClick={() => setSelectedBrand('HP')}
+                                    onClick={() => {
+                                      setSelectedBrand('HP');
+                                      router.replace('/laptops?brand=HP');
+                                    }}
                                     className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
                                       selectedBrand === 'HP' ? 'bg-gray-100' : 'hover:bg-gray-100'
                                     }`}
@@ -419,7 +427,10 @@ const Navbar = () => {
                                     HP
                                   </button>
                                   <button
-                                    onClick={() => setSelectedBrand('Dell')}
+                                    onClick={() => {
+                                      setSelectedBrand('Dell');
+                                      router.replace('/laptops?brand=Dell');
+                                    }}
                                     className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
                                       selectedBrand === 'Dell' ? 'bg-gray-100' : 'hover:bg-gray-100'
                                     }`}
@@ -427,7 +438,10 @@ const Navbar = () => {
                                     Dell
                                   </button>
                                   <button
-                                    onClick={() => setSelectedBrand('Lenovo')}
+                                    onClick={() => {
+                                      setSelectedBrand('Lenovo');
+                                      router.replace('/laptops?brand=Lenovo');
+                                    }}
                                     className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
                                       selectedBrand === 'Lenovo' ? 'bg-gray-100' : 'hover:bg-gray-100'
                                     }`}
@@ -435,7 +449,10 @@ const Navbar = () => {
                                     Lenovo
                                   </button>
                                   <button
-                                    onClick={() => setSelectedBrand('Acer')}
+                                    onClick={() => {
+                                      setSelectedBrand('Acer');
+                                      router.replace('/laptops?brand=Acer');
+                                    }}
                                     className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
                                       selectedBrand === 'Acer' ? 'bg-gray-100' : 'hover:bg-gray-100'
                                     }`}
@@ -443,7 +460,10 @@ const Navbar = () => {
                                     Acer
                                   </button>
                                   <button
-                                    onClick={() => setSelectedBrand('Asus')}
+                                    onClick={() => {
+                                      setSelectedBrand('Asus');
+                                      router.replace('/laptops?brand=Asus');
+                                    }}
                                     className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
                                       selectedBrand === 'Asus' ? 'bg-gray-100' : 'hover:bg-gray-100'
                                     }`}
@@ -451,7 +471,10 @@ const Navbar = () => {
                                     Asus
                                   </button>
                                   <button
-                                    onClick={() => setSelectedBrand('Samsung')}
+                                    onClick={() => {
+                                      setSelectedBrand('Samsung');
+                                      router.replace('/laptops?brand=Samsung');
+                                    }}
                                     className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
                                       selectedBrand === 'Samsung' ? 'bg-gray-100' : 'hover:bg-gray-100'
                                     }`}
@@ -459,7 +482,10 @@ const Navbar = () => {
                                     Samsung
                                   </button>
                                   <button
-                                    onClick={() => setSelectedBrand('Chromebook')}
+                                    onClick={() => {
+                                      setSelectedBrand('Chromebook');
+                                      router.replace('/laptops?brand=Chromebook');
+                                    }}
                                     className={`w-full text-left px-4 py-2.5 text-sm text-black transition cursor-pointer ${
                                       selectedBrand === 'Chromebook' ? 'bg-gray-100' : 'hover:bg-gray-100'
                                     }`}
@@ -577,7 +603,7 @@ const Navbar = () => {
                   </div>
                 )}
               </div>
-              <a href="#" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
+              <a href="/laptops" className="flex items-center gap-2 px-4 py-4 hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
                 <CiLaptop className="text-2xl shrink-0" />
                 <span className="text-sm">Laptops</span>
                 <FaChevronDown className="text-xs shrink-0" />
