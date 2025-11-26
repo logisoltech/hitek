@@ -16,12 +16,7 @@ import ProductModal from '../Cx/Components/ProductModal';
 import { useCart } from '../Cx/Providers/CartProvider';
 import { useImagePreloader } from '../Cx/hooks/useImagePreloader';
 
-export function ProductsPage({
-  restrictToType = null,
-  pageTitle = 'All Products',
-  showCategoryFilter = true,
-} = {}) {
-  const searchParams = useSearchParams();
+export const ProductsPage = ({ searchParams, restrictToType = null, pageTitle = 'All Products', showCategoryFilter = true } = {}) => {
   const PRICE_MIN = 0;
   const PRICE_MAX = 500000;
   const defaultCategory =
@@ -50,7 +45,7 @@ export function ProductsPage({
   const FEATURED_BANNER_PRODUCT_ID = '12';
 
   useEffect(() => {
-    const brandParam = searchParams?.get('brand');
+    const brandParam = searchParams?.brand;
     const normalized = brandParam ? brandParam.trim() : '';
 
     if (normalized) {
@@ -232,6 +227,9 @@ export function ProductsPage({
         if (restrictToType) {
           url.searchParams.set('category', restrictToType);
         }
+        if (searchParams?.brand) {
+          url.searchParams.set('brand', searchParams.brand);
+        }
 
         const response = await fetch(url.toString());
         if (!response.ok) {
@@ -273,7 +271,7 @@ export function ProductsPage({
     return () => {
       isMounted = false;
     };
-  }, [sortBy, restrictToType]);
+  }, [sortBy, restrictToType, searchParams?.brand]);
 
   useEffect(() => {
     if (restrictToType === 'laptop') {
@@ -996,6 +994,6 @@ export function ProductsPage({
   );
 }
 
-export default function AllProductsPage() {
-  return <ProductsPage />;
+export default function AllProductsPage({ searchParams }) {
+  return <ProductsPage searchParams={searchParams} />;
 }
