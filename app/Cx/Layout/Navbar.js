@@ -143,9 +143,29 @@ const Navbar = () => {
       const products = Array.isArray(data) ? data : [];
       
       const normalizedQuery = query.trim().toLowerCase();
-      const filtered = products
-        .map(normalizeProduct)
-        .filter(Boolean)
+      
+      // Filter by category first
+      let categoryFiltered = products.map(normalizeProduct).filter(Boolean);
+      
+      if (selectedCategory !== 'All Categories') {
+        // Map category selection to product types/categories
+        if (selectedCategory === 'Laptops' || selectedCategory === 'Refurbished Laptops') {
+          categoryFiltered = categoryFiltered.filter((product) => 
+            product.type === 'laptop' || product.category === 'Laptops'
+          );
+        } else if (selectedCategory === 'Printers' || selectedCategory === 'Toners' || selectedCategory === 'Cartridges') {
+          categoryFiltered = categoryFiltered.filter((product) => 
+            product.type === 'printer' || product.category === 'Printers'
+          );
+        } else {
+          // For categories without products (Desktop PCs, LED Monitors, etc.), return empty
+          // This prevents showing laptops/printers when searching in categories that don't exist
+          categoryFiltered = [];
+        }
+      }
+      
+      // Then filter by search query
+      const filtered = categoryFiltered
         .filter((product) => {
           const searchableText = [
             product.name,
