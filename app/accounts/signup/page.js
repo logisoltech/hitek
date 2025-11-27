@@ -25,6 +25,11 @@ const SignInPage = () => {
   const [success, setSuccess] = useState(false);
   const [showShippingForm, setShowShippingForm] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [showOTPForm, setShowOTPForm] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOTP, setVerifyingOTP] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [shippingData, setShippingData] = useState({
     phone: '',
     shipment_address: '',
@@ -121,7 +126,7 @@ const SignInPage = () => {
     }
   };
 
-  const handleSignUp = async (e) => {
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -146,6 +151,137 @@ const SignInPage = () => {
         return;
       }
 
+      // Send OTP
+      let response;
+      try {
+        response = await fetch('https://hitek-server.onrender.com/api/auth/send-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email.trim(),
+          }),
+        });
+      } catch (fetchError) {
+        if (fetchError.name === 'TypeError' || fetchError.message.includes('fetch')) {
+          console.error('Backend server not reachable:', fetchError);
+          setError('Backend server is not running. Please start the server with: npm run server');
+          setLoading(false);
+          return;
+        }
+        throw fetchError;
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse response:', jsonError);
+        setError('Invalid response from server. Please check if the server is running correctly.');
+        setLoading(false);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorMessage = data.error || 'Failed to send OTP';
+        console.error('Send OTP error:', errorMessage);
+        setError(errorMessage);
+        setLoading(false);
+        return;
+      }
+
+      // OTP sent successfully
+      setOtpSent(true);
+      setShowOTPForm(true);
+      setSuccess(true);
+      setError('');
+      setLoading(false);
+
+      // In development, show OTP in console
+      if (data.otp) {
+        console.log('🔐 OTP Code (Development):', data.otp);
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred. Please try again.');
+      console.error('Send OTP error:', err);
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setError('');
+    setVerifyingOTP(true);
+
+    try {
+      if (!otpCode || otpCode.length !== 6) {
+        setError('Please enter a valid 6-digit OTP code');
+        setVerifyingOTP(false);
+        return;
+      }
+
+      // Verify OTP
+      let response;
+      try {
+        response = await fetch('https://hitek-server.onrender.com/api/auth/verify-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email.trim(),
+            otp: otpCode.trim(),
+          }),
+        });
+      } catch (fetchError) {
+        if (fetchError.name === 'TypeError' || fetchError.message.includes('fetch')) {
+          console.error('Backend server not reachable:', fetchError);
+          setError('Backend server is not running. Please start the server with: npm run server');
+          setVerifyingOTP(false);
+          return;
+        }
+        throw fetchError;
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse response:', jsonError);
+        setError('Invalid response from server. Please check if the server is running correctly.');
+        setVerifyingOTP(false);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorMessage = data.error || 'Invalid OTP';
+        console.error('Verify OTP error:', errorMessage);
+        setError(errorMessage);
+        setVerifyingOTP(false);
+        return;
+      }
+
+      // OTP verified successfully
+      setEmailVerified(true);
+      setSuccess(true);
+      setError('');
+      setVerifyingOTP(false);
+
+      // Proceed with registration
+      await handleCompleteRegistration();
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred. Please try again.');
+      console.error('Verify OTP error:', err);
+      setVerifyingOTP(false);
+    }
+  };
+
+  const handleCompleteRegistration = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
       // Call backend API for registration
       let response;
       try {
@@ -184,6 +320,15 @@ const SignInPage = () => {
       if (!response.ok) {
         const errorMessage = data.error || 'Registration failed';
         console.error('Backend registration error:', errorMessage);
+        
+        // If requires verification, reset OTP form
+        if (data.requiresVerification) {
+          setEmailVerified(false);
+          setOtpSent(false);
+          setOtpCode('');
+          setShowOTPForm(true);
+        }
+        
         setError(errorMessage);
         setLoading(false);
         return;
@@ -193,6 +338,7 @@ const SignInPage = () => {
       setSuccess(true);
       setError('');
       setLoading(false);
+      setShowOTPForm(false);
 
       // Store user data and ID
       if (data.user) {
@@ -211,6 +357,14 @@ const SignInPage = () => {
       console.error('Registration error:', err);
       setLoading(false);
     }
+  };
+
+  const handleResendOTP = async () => {
+    setError('');
+    setOtpCode('');
+    setOtpSent(false);
+    setEmailVerified(false);
+    await handleSendOTP({ preventDefault: () => {} });
   };
 
   const handleShippingDetails = async (e) => {
@@ -361,7 +515,11 @@ const SignInPage = () => {
                       ? 'Shipping details saved successfully! Redirecting...'
                       : activeTab === 'signin' 
                         ? 'Login successful! Redirecting...' 
-                        : 'Registration successful! Please provide your shipping details.'}
+                        : showOTPForm
+                          ? emailVerified
+                            ? 'Email verified! Creating your account...'
+                            : 'Verification code sent! Please check your email.'
+                          : 'Registration successful! Please provide your shipping details.'}
                   </p>
                 </div>
               )}
@@ -462,8 +620,8 @@ const SignInPage = () => {
               )}
 
               {/* Sign Up Form */}
-              {activeTab === 'signup' && !showShippingForm && (
-                <form onSubmit={handleSignUp}>
+              {activeTab === 'signup' && !showShippingForm && !showOTPForm && (
+                <form onSubmit={handleSendOTP}>
                   {/* First Name Field */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -563,13 +721,13 @@ const SignInPage = () => {
                     />
                   </div>
 
-                  {/* Sign Up Button */}
+                  {/* Send OTP Button */}
                   <button
                     type="submit"
                     disabled={loading}
                     className="w-full bg-[#00aeef] hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 rounded-md font-bold flex items-center justify-center gap-2 transition mb-4"
                   >
-                    {loading ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT'}
+                    {loading ? 'SENDING VERIFICATION CODE...' : 'SEND VERIFICATION CODE'}
                     {!loading && <FiArrowRight />}
                   </button>
 
@@ -592,6 +750,64 @@ const SignInPage = () => {
                   >
                     <FcGoogle className="text-2xl" />
                     Sign up with Google
+                  </button>
+                </form>
+              )}
+
+              {/* OTP Verification Form */}
+              {showOTPForm && !showShippingForm && (
+                <form onSubmit={handleVerifyOTP}>
+                  <div className="mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-2">Verify Your Email</h2>
+                    <p className="text-sm text-gray-600 mb-4">
+                      We've sent a 6-digit verification code to <strong>{formData.email}</strong>. 
+                      Please enter the code below to verify your email address.
+                    </p>
+                  </div>
+
+                  {/* OTP Input */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Verification Code
+                    </label>
+                    <input
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setOtpCode(value);
+                        setError('');
+                      }}
+                      placeholder="Enter 6-digit code"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00aeef] focus:border-transparent text-gray-900 text-center text-2xl tracking-widest"
+                      disabled={verifyingOTP || emailVerified}
+                      required
+                      maxLength={6}
+                    />
+                  </div>
+
+                  {/* Resend OTP */}
+                  {!emailVerified && (
+                    <div className="mb-6 text-center">
+                      <button
+                        type="button"
+                        onClick={handleResendOTP}
+                        disabled={loading}
+                        className="text-sm text-[#00aeef] hover:underline disabled:text-gray-400"
+                      >
+                        Didn't receive the code? Resend
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Verify Button */}
+                  <button
+                    type="submit"
+                    disabled={verifyingOTP || emailVerified || otpCode.length !== 6}
+                    className="w-full bg-[#00aeef] hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 rounded-md font-bold flex items-center justify-center gap-2 transition mb-4"
+                  >
+                    {verifyingOTP ? 'VERIFYING...' : emailVerified ? 'VERIFIED ✓' : 'VERIFY EMAIL'}
+                    {!verifyingOTP && !emailVerified && <FiArrowRight />}
                   </button>
                 </form>
               )}
