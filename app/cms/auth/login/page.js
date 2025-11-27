@@ -16,9 +16,6 @@ const CmsLoginPage = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    setIdentifier('admin');
-    setPassword('admin');
-
     const storedSession = window.localStorage.getItem('cmsSession');
     const storedUser = window.localStorage.getItem('cmsUser');
 
@@ -41,28 +38,6 @@ const CmsLoginPage = () => {
     }
 
     setLoading(true);
-
-    if (trimmedIdentifier === 'admin' && trimmedPassword === 'admin') {
-      const fakeUser = {
-        id: 'cms-static-admin',
-        email: 'admin@cms.local',
-        name: 'CMS Administrator',
-      };
-      const fakeSession = {
-        access_token: `cms-static-${Date.now()}`,
-        user: fakeUser,
-      };
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('cmsSession', JSON.stringify(fakeSession));
-        window.localStorage.setItem('cmsUser', JSON.stringify(fakeUser));
-      }
-
-      setSuccess('Static login successful. Welcome to the CMS dashboard.');
-      setLoading(false);
-      router.replace('/cms/dashboard');
-      return;
-    }
 
     try {
       const response = await fetch('https://hitek-server.onrender.com/api/cms/login', {
@@ -88,7 +63,28 @@ const CmsLoginPage = () => {
 
     setSuccess('Login successful. You may proceed to the CMS dashboard.');
     setPassword('');
-    router.replace('/cms/dashboard');
+    
+    // Redirect based on user's access pages
+    const user = payload.user;
+    const accessPages = user.accesspages || [];
+    
+    // Admin users go to dashboard, others go to their first accessible page
+    if (user.role === 'admin' || accessPages.includes('dashboard')) {
+      router.replace('/cms/dashboard');
+    } else if (accessPages.length > 0) {
+      const firstPage = accessPages[0];
+      const pageMap = {
+        products: '/cms/products',
+        orders: '/cms/orders',
+        inventory: '/cms/inventory',
+        customers: '/cms/customers',
+        settings: '/cms/settings',
+      };
+      const redirectPath = pageMap[firstPage] || '/cms/dashboard';
+      router.replace(redirectPath);
+    } else {
+      router.replace('/cms/dashboard');
+    }
     } catch (err) {
       console.error('CMS login error:', err);
       setError('A network error occurred. Please try again.');

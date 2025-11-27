@@ -88,6 +88,28 @@ const CmsInventoryPage = () => {
 
     if (!storedUser || !storedSession) {
       router.replace('/cms/auth/login');
+      return;
+    }
+
+    try {
+      const parsedUser = JSON.parse(storedUser);
+      
+      // Ensure accesspages is an array
+      if (!Array.isArray(parsedUser.accesspages)) {
+        parsedUser.accesspages = [];
+      }
+      
+      // Admin users always have access, others need inventory in accesspages
+      if (parsedUser.role !== 'admin') {
+        const accessPages = parsedUser.accesspages || [];
+        if (!accessPages.includes('inventory')) {
+          router.replace('/cms/auth/login');
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to parse CMS user', err);
+      router.replace('/cms/auth/login');
     }
   }, [router]);
 

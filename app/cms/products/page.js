@@ -195,6 +195,21 @@ const CmsProductsPage = () => {
 
     try {
       const parsedUser = JSON.parse(storedUser);
+      
+      // Ensure accesspages is an array
+      if (!Array.isArray(parsedUser.accesspages)) {
+        parsedUser.accesspages = [];
+      }
+      
+      // Admin users always have access, others need products in accesspages
+      if (parsedUser.role !== 'admin') {
+        const accessPages = parsedUser.accesspages || [];
+        if (!accessPages.includes('products')) {
+          router.replace('/cms/auth/login');
+          return;
+        }
+      }
+      
       setCmsUser(parsedUser);
     } catch (err) {
       console.error('Failed to parse CMS user', err);

@@ -255,6 +255,21 @@ const CmsOrdersPage = () => {
 
     try {
       const parsedUser = JSON.parse(storedUser);
+      
+      // Check if user has access to orders page
+      // Ensure accesspages is an array
+      if (!Array.isArray(parsedUser.accesspages)) {
+        parsedUser.accesspages = [];
+      }
+      
+      // Admin users always have access, others need orders in accesspages
+      if (parsedUser.role !== 'admin') {
+        const accessPages = parsedUser.accesspages || [];
+        if (!accessPages.includes('orders')) {
+          router.replace('/cms/auth/login');
+          return;
+        }
+      }
       setCmsUser(parsedUser);
     } catch (err) {
       console.error('Failed to parse CMS user', err);

@@ -35,18 +35,19 @@ const fallbackActivities = [
 ];
 
 const navigationItems = [
-  { id: 'overview', label: 'Overview', href: '/cms/dashboard', icon: FiHome },
-  { id: 'products', label: 'Products', href: '/cms/products', icon: FiBox },
-  { id: 'orders', label: 'Orders', href: '/cms/orders', icon: FiShoppingCart },
-  { id: 'inventory', label: 'Inventory', href: '/cms/inventory', icon: FiPackage },
-  { id: 'customers', label: 'Customers', href: '/cms/customers', icon: FiUsers },
-  { id: 'settings', label: 'Settings', href: '/cms/settings', icon: FiSettings },
+  { id: 'overview', label: 'Overview', href: '/cms/dashboard', icon: FiHome, page: 'dashboard' },
+  { id: 'products', label: 'Products', href: '/cms/products', icon: FiBox, page: 'products' },
+  { id: 'orders', label: 'Orders', href: '/cms/orders', icon: FiShoppingCart, page: 'orders' },
+  { id: 'inventory', label: 'Inventory', href: '/cms/inventory', icon: FiPackage, page: 'inventory' },
+  { id: 'customers', label: 'Customers', href: '/cms/customers', icon: FiUsers, page: 'customers' },
+  { id: 'settings', label: 'Settings', href: '/cms/settings', icon: FiSettings, page: 'settings' },
 ];
 
 const quickActions = [
   {
     id: 'create-product',
     label: 'Add new product',
+    href: '/cms/products/add-product',
     description: 'Create and publish a product listing',
     accent: 'from-[#0ea5e9] to-[#38bdf8]',
     icon: FiBox,
@@ -54,23 +55,26 @@ const quickActions = [
   {
     id: 'review-orders',
     label: 'Review latest orders',
+    href: '/cms/orders',
     description: 'Track new and pending purchases',
     accent: 'from-[#f97316] to-[#fb7185]',
     icon: FiShoppingCart,
   },
   {
     id: 'sync-inventory',
-    label: 'Sync printer stock',
+    label: 'Inventory Management',
+    href: '/cms/inventory',
     description: 'Update quantities for all SKUs',
     accent: 'from-[#22c55e] to-[#10b981]',
     icon: FiPackage,
   },
   {
     id: 'view-analytics',
-    label: 'View sales reports',
-    description: 'Monitor performance metrics',
+    label: 'Accounts',
+    href: '/cms/settings',
+    description: 'Manage CMS accounts',
     accent: 'from-[#a855f7] to-[#6366f1]',
-    icon: FiTrendingUp,
+    icon: FiUsers,
   },
 ];
 
@@ -94,8 +98,20 @@ const CmsDashboardPage = () => {
       }
 
       const parsedUser = JSON.parse(storedUser);
+      
+      // Ensure accesspages is set (fallback for existing users)
+      if (!parsedUser.accesspages || !Array.isArray(parsedUser.accesspages)) {
+        if (parsedUser.role === 'admin') {
+          parsedUser.accesspages = ['dashboard', 'products', 'orders', 'inventory', 'customers', 'settings'];
+        } else {
+          parsedUser.accesspages = [];
+        }
+      }
+      
       setCmsUser(parsedUser);
 
+      // All authenticated users can access dashboard
+      // The sidebar will automatically filter to show only their accessible pages
       // Placeholder: update stats/activities from API if available
       // Example: fetch('/api/cms/overview').then(...)
 
@@ -139,24 +155,35 @@ const CmsDashboardPage = () => {
           </div>
 
           <nav className="flex-1 px-3 py-6 space-y-1">
-            {navigationItems.map((item) => {
-              const isActive = activeItem === item.id;
-              const Icon = item.icon;
-              return (
-                <Link href={item.href}><button
-                  key={item.id}
-                  onClick={() => setActiveItem(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-sm font-medium ${
-                    isActive
-                      ? 'bg-linear-to-r from-[#38bdf8] to-[#6366f1] text-white shadow-lg shadow-[#6366f1]/40'
-                      : 'text-slate-200 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Icon className="text-lg" />
-                  <span>{item.label}</span>
-                </button></Link>
-              );
-            })}
+            {navigationItems
+              .filter((item) => {
+                // If no user loaded yet, show all (will be filtered once user loads)
+                if (!cmsUser) return true;
+                // Admin has access to all pages (case-insensitive check)
+                const userRole = (cmsUser.role || '').toLowerCase();
+                if (userRole === 'admin') return true;
+                // Check if user has access to this page
+                const accessPages = Array.isArray(cmsUser.accesspages) ? cmsUser.accesspages : [];
+                return accessPages.includes(item.page);
+              })
+              .map((item, key) => {
+                const isActive = activeItem === item.id;
+                const Icon = item.icon;
+                return (
+                  <Link key={key} href={item.href}><button
+                    key={item.id}
+                    onClick={() => setActiveItem(item.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-sm font-medium ${
+                      isActive
+                        ? 'bg-linear-to-r from-[#38bdf8] to-[#6366f1] text-white shadow-lg shadow-[#6366f1]/40'
+                        : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="text-lg" />
+                    <span>{item.label}</span>
+                  </button></Link>
+                );
+              })}
           </nav>
 
           <div className="px-7 py-6 border-t border-white/10">
@@ -169,12 +196,7 @@ const CmsDashboardPage = () => {
                 <p className="text-xs text-slate-300">Administrator</p>
               </div>
             </div>
-            <button
-              onClick={handleSignOut}
-              className="mt-4 w-full text-sm font-semibold text-[#38bdf8] hover:text-[#60a5fa] transition flex items-center gap-2"
-            >
-              <FiLogOut /> Sign out
-            </button>
+            
           </div>
         </aside>
 
@@ -225,7 +247,6 @@ const CmsDashboardPage = () => {
                         <Icon className="text-xl text-white" />
                       </span>
                     </div>
-                    <p className="relative text-xs text-white/80 mt-4">Updated moments ago</p>
                   </div>
                 );
               })}
@@ -244,12 +265,12 @@ const CmsDashboardPage = () => {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {quickActions.map((action) => {
+                  {quickActions.map((action, key) => {
                     const Icon = action.icon;
-                    return (
+                    const buttonContent = (
                       <button
                         key={action.id}
-                        className={`relative overflow-hidden rounded-xl border border-white/10 bg-linear-to-br ${action.accent} text-left p-5 transition transform hover:-translate-y-1 hover:shadow-2xl`}
+                        className={`relative overflow-hidden rounded-xl border border-white/10 bg-linear-to-br ${action.accent} text-left p-5 transition transform hover:-translate-y-1 hover:shadow-2xl w-full`}
                       >
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent_55%)] opacity-80" />
                         <div className="relative flex items-start gap-4">
@@ -262,6 +283,16 @@ const CmsDashboardPage = () => {
                           </div>
                         </div>
                       </button>
+                    );
+
+                    return action.href ? (
+                      <Link key={key} href={action.href}>
+                        {buttonContent}
+                      </Link>
+                    ) : (
+                      <div key={key}>
+                        {buttonContent}
+                      </div>
                     );
                   })}
                 </div>
@@ -280,24 +311,7 @@ const CmsDashboardPage = () => {
               </div>
             </section>
 
-            <section className="bg-white/10 backdrop-blur-xl rounded-2xl shadow-xl border border-white/10 p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-white">Announcements</h2>
-                <button className="text-sm text-[#38bdf8] hover:text-[#60a5fa] font-medium transition">
-                  Add new
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <article className="rounded-xl p-4 border border-white/10 bg-linear-to-br from-white/10 to-white/5 hover:border-[#38bdf8]/40 transition">
-                  <h3 className="text-sm font-semibold text-white">Maintenance window</h3>
-                  <p className="text-xs text-white/70 mt-2">Scheduled for Sunday, 02:00 AM - 04:00 AM</p>
-                </article>
-                <article className="rounded-xl p-4 border border-white/10 bg-linear-to-br from-white/10 to-white/5 hover:border-[#38bdf8]/40 transition">
-                  <h3 className="text-sm font-semibold text-white">Inventory sync</h3>
-                  <p className="text-xs text-white/70 mt-2">All printer SKUs refreshed successfully</p>
-                </article>
-              </div>
-            </section>
+            
           </main>
         </div>
       </div>
