@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Navbar from '../Cx/Layout/Navbar';
 import Footer from '../Cx/Layout/Footer';
 import { CiSearch } from 'react-icons/ci';
@@ -18,6 +18,7 @@ import { useImagePreloader } from '../Cx/hooks/useImagePreloader';
 
 export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictToType = null, pageTitle = 'All Products', showCategoryFilter = true } = {}) => {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const PRICE_MIN = 0;
   const PRICE_MAX = 500000;
   const defaultCategory =
@@ -40,6 +41,14 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
   const brandFromUrl = searchParams?.get('brand') || '';
   const brandFromProps = resolveBrandParam(initialSearchParams?.brand);
   const brandParam = brandFromUrl || brandFromProps;
+  
+  const searchFromUrl = searchParams?.get('search') || '';
+  const searchFromProps = initialSearchParams?.search || '';
+  const searchParam = searchFromUrl || searchFromProps;
+  
+  const categoryFromUrl = searchParams?.get('category') || '';
+  const categoryFromProps = initialSearchParams?.category || '';
+  const categoryParam = categoryFromUrl || categoryFromProps;
 
   const [selectedPriceRange, setSelectedPriceRange] = useState('');
   const [activeFilters, setActiveFilters] = useState(['Core i7']);
@@ -47,6 +56,7 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectedBrands, setSelectedBrands] = useState(brandParam ? [brandParam] : []);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState(searchParam);
 
   const brandFromUrlRef = useRef(Boolean(brandParam));
 
@@ -73,6 +83,24 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
       setSelectedBrands([]);
     }
   }, [brandParam, restrictToType]);
+
+  useEffect(() => {
+    if (searchParam) {
+      setSearchTerm(searchParam);
+      setCurrentPage(1);
+    }
+  }, [searchParam]);
+
+  useEffect(() => {
+    if (categoryParam) {
+      const normalizedCategory = categoryParam.toLowerCase().trim();
+      if (normalizedCategory === 'laptop' || normalizedCategory === 'laptops') {
+        setSelectedCategory('Laptops');
+      } else if (normalizedCategory === 'printer' || normalizedCategory === 'printers') {
+        setSelectedCategory('Printers');
+      }
+    }
+  }, [categoryParam]);
 
   const clampPrice = (value) => {
     const numeric = Number(value);
@@ -352,9 +380,12 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
 
     const applyPriceFilter = Boolean(selectedPriceRange) && selectedPriceRange !== 'all';
     const applyBrandFilter = normalizedBrandSelections.length > 0;
+    const applySearchFilter = Boolean(searchTerm && searchTerm.trim());
     const minPrice = clampPrice(priceRange?.min ?? PRICE_MIN);
     const maxPriceCandidate = clampPrice(priceRange?.max ?? PRICE_MAX);
     const maxPrice = Math.max(minPrice, maxPriceCandidate);
+
+    const normalizedSearchTerm = applySearchFilter ? searchTerm.trim().toLowerCase() : '';
 
     return products.filter((product) => {
       const matchesCategory =
@@ -365,6 +396,24 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
 
       if (!matchesCategory) {
         return false;
+      }
+
+      if (applySearchFilter) {
+        const searchableFields = [
+          product.name || '',
+          product.brand || '',
+          product.model || '',
+          product.series || '',
+          product.description || '',
+          product.sku || '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        if (!searchableFields.includes(normalizedSearchTerm)) {
+          return false;
+        }
       }
 
       if (applyBrandFilter) {
@@ -385,7 +434,7 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
 
       return numericPrice >= minPrice && numericPrice <= maxPrice;
     });
-  }, [products, selectedCategory, selectedPriceRange, priceRange, normalizedBrandSelections]);
+  }, [products, selectedCategory, selectedPriceRange, priceRange, normalizedBrandSelections, searchTerm]);
 
   const featuredBannerProduct = useMemo(() => {
     if (!Array.isArray(products) || !products.length) return null;
@@ -864,10 +913,50 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
                     <div className="flex rounded overflow-hidden border border-gray-300">
                       <input
                         type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Search for anything..."
                         className="flex-1 px-4 py-2 text-gray-900 bg-white focus:outline-none"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const params = new URLSearchParams(window.location.search);
+                            if (searchTerm.trim()) {
+                              params.set('search', searchTerm.trim());
+                            } else {
+                              params.delete('search');
+                            }
+                            router.push(`/all-products?${params.toString()}`);
+                          }
+                        }}
                       />
-                      <button className="bg-white text-gray-700 px-4 hover:bg-gray-100 transition">
+                      {searchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchTerm('');
+                            const params = new URLSearchParams(window.location.search);
+                            params.delete('search');
+                            router.push(`/all-products?${params.toString()}`);
+                          }}
+                          className="bg-white text-gray-700 px-3 hover:bg-gray-100 transition"
+                        >
+                          <FaTimes className="text-sm" />
+                        </button>
+                      )}
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const params = new URLSearchParams(window.location.search);
+                          if (searchTerm.trim()) {
+                            params.set('search', searchTerm.trim());
+                          } else {
+                            params.delete('search');
+                          }
+                          router.push(`/all-products?${params.toString()}`);
+                        }}
+                        className="bg-white text-gray-700 px-4 hover:bg-gray-100 transition"
+                      >
                         <CiSearch className="text-xl" />
                       </button>
                     </div>

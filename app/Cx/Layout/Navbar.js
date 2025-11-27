@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -56,6 +56,13 @@ const Navbar = () => {
   const [featuredBannerProduct, setFeaturedBannerProduct] = useState(null);
   const { cartCount } = useCart();
   const [currentUser, setCurrentUser] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All Categories');
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef(null);
 
   const parseNumeric = (value, fallback = 0) => {
     if (value === null || value === undefined) return fallback;
@@ -92,6 +99,177 @@ const Navbar = () => {
     const numeric = parseNumeric(value, 0);
     return `PKR ${numeric.toLocaleString('en-PK')}`;
   };
+
+  const normalizeProduct = (item) => {
+    if (!item) return null;
+    const inferredType = item?.type || (typeof item?.category === 'string' && item.category.toLowerCase().includes('printer') ? 'printer' : 'laptop');
+    return {
+      id: item.id || item.sourceId || null,
+      name: item.name || 'Unnamed Product',
+      brand: item.brand || '',
+      model: item.model || '',
+      price: item.price || 0,
+      image: extractPrimaryImage(item),
+      type: inferredType,
+      category: item.category || (inferredType === 'printer' ? 'Printers' : 'Laptops'),
+    };
+  };
+
+  const performSearch = async (query) => {
+    if (!query || !query.trim()) {
+      setSearchResults([]);
+      setIsSearchDropdownOpen(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const url = new URL('https://hitek-server.onrender.com/api/products');
+      // Map category names to API category values
+      if (selectedCategory === 'Laptops' || selectedCategory === 'Refurbished Laptops') {
+        url.searchParams.set('category', 'laptop');
+      } else if (selectedCategory === 'Printers' || selectedCategory === 'Toners' || selectedCategory === 'Cartridges') {
+        url.searchParams.set('category', 'printer');
+      }
+      // Note: LED Monitors, Desktop PCs, Scanners, etc. don't have specific API filters yet
+      // They will search all products
+
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        throw new Error('Failed to search products');
+      }
+
+      const data = await response.json();
+      const products = Array.isArray(data) ? data : [];
+      
+      const normalizedQuery = query.trim().toLowerCase();
+      const filtered = products
+        .map(normalizeProduct)
+        .filter(Boolean)
+        .filter((product) => {
+          const searchableText = [
+            product.name,
+            product.brand,
+            product.model,
+            product.category,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return searchableText.includes(normalizedQuery);
+        })
+        .slice(0, 8); // Limit to 8 results
+
+      setSearchResults(filtered);
+      setIsSearchDropdownOpen(true); // Always show dropdown when there are results or when searching
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+      setIsSearchDropdownOpen(true); // Still show dropdown to display "No products found"
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchInputChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // If search is cleared, close dropdown
+    if (!value.trim()) {
+      setSearchResults([]);
+      setIsSearchDropdownOpen(false);
+      setIsSearching(false);
+      return;
+    }
+
+    // Show dropdown immediately when typing (will show loading state)
+    setIsSearching(true);
+    setIsSearchDropdownOpen(true);
+
+    // Debounce search
+    searchTimeoutRef.current = setTimeout(() => {
+      performSearch(value);
+    }, 300);
+  };
+
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    // Don't redirect on Enter - just show dropdown if there are results
+    if (searchTerm.trim() && searchResults.length > 0) {
+      setIsSearchDropdownOpen(true);
+    } else if (searchTerm.trim()) {
+      // If no results but there's a search term, perform search
+      performSearch(searchTerm);
+    }
+  };
+
+  const handleViewAllResults = () => {
+    if (!searchTerm.trim()) return;
+    
+    const params = new URLSearchParams();
+    params.set('search', searchTerm.trim());
+    
+    if (selectedCategory !== 'All Categories') {
+      // Map category names to API category values
+      if (selectedCategory === 'Laptops' || selectedCategory === 'Refurbished Laptops') {
+        params.set('category', 'laptop');
+      } else if (selectedCategory === 'Printers' || selectedCategory === 'Toners' || selectedCategory === 'Cartridges') {
+        params.set('category', 'printer');
+      }
+      // Note: Other categories will search all products
+    }
+    
+    router.push(`/all-products?${params.toString()}`);
+    setIsCategoryDropdownOpen(false);
+    setIsSearchDropdownOpen(false);
+  };
+
+  const handleResultClick = (product) => {
+    setIsSearchDropdownOpen(false);
+    setSearchTerm('');
+    router.push(`/product/${product.id}?type=${product.type}`);
+  };
+
+  const categories = [
+    'All Categories',
+    'Laptops',
+    'Printers',
+    'LED Monitors',
+    'Toners',
+    'Desktop PCs',
+    'Cartridges',
+    'Scanners',
+    'Refurbished Laptops',
+    'Refurbished Desktop PCs',
+    'Computer Accessories'
+  ];
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Trigger search when category changes and search term exists
+  useEffect(() => {
+    if (searchTerm.trim()) {
+      // Clear previous timeout
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      performSearch(searchTerm);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -338,19 +516,130 @@ const Navbar = () => {
           </div>
 
           {/* Search Bar */}
-          <div className="flex-1 w-full lg:w-auto max-w-2xl">
-            <div className="flex rounded overflow-hidden">
-              <button className="bg-gray-300 text-gray-700 px-4 py-3 flex items-center gap-2 border-r border-gray-400">
-                <span className="text-sm font-medium">All Categories</span>
-                <FaChevronDown className="text-xs" />
-              </button>
-              <input 
-                type="text" 
-                placeholder="Search for anything..." 
-                className="flex-1 px-4 py-3 text-gray-900 bg-white focus:outline-none"
-              />
-              <button className="bg-white text-gray-700 px-6 py-3 hover:bg-gray-100 transition">
-                <CiSearch />
+          <div className="flex-1 w-full lg:w-auto max-w-2xl relative z-50">
+            <div className="flex rounded overflow-visible relative">
+              <div className="relative z-10">
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                  className="bg-gray-300 text-gray-700 px-4 py-[14px] flex items-center gap-2 border-r border-gray-400 hover:bg-gray-400 transition whitespace-nowrap"
+                >
+                  <span className="text-sm font-medium">{selectedCategory}</span>
+                  <FaChevronDown className={`text-xs transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isCategoryDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-[45]" 
+                      onClick={() => setIsCategoryDropdownOpen(false)}
+                    />
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-[60] min-w-[180px]">
+                      {categories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCategory(category);
+                            setIsCategoryDropdownOpen(false);
+                            if (searchTerm.trim()) {
+                              performSearch(searchTerm);
+                            }
+                          }}
+                          className={`w-full text-left px-4 text-black py-2 text-sm hover:bg-gray-100 transition ${
+                            selectedCategory === category ? 'bg-gray-100 font-medium' : ''
+                          }`}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="flex-1 relative z-10">
+                <input 
+                  type="text" 
+                  value={searchTerm}
+                  onChange={handleSearchInputChange}
+                  onFocus={() => {
+                    if (searchTerm.trim() && (searchResults.length > 0 || isSearching)) {
+                      setIsSearchDropdownOpen(true);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchSubmit(e);
+                    }
+                  }}
+                  placeholder="Search for anything..." 
+                  className="w-full px-4 py-3 text-gray-900 bg-white focus:outline-none"
+                />
+                {isSearchDropdownOpen && searchTerm.trim() && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-[45]" 
+                      onClick={() => setIsSearchDropdownOpen(false)}
+                    />
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-xl z-[60] max-h-96 overflow-y-auto w-full">
+                      {isSearching ? (
+                        <div className="px-4 py-3 text-center text-gray-500 text-sm">
+                          Searching...
+                        </div>
+                      ) : searchResults.length > 0 ? (
+                        <>
+                          {searchResults.map((product) => (
+                            <button
+                              key={`${product.type}-${product.id}`}
+                              type="button"
+                              onClick={() => handleResultClick(product)}
+                              className="w-full text-left px-4 py-3 hover:bg-gray-100 transition flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="w-12 h-12 shrink-0 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                                <Image
+                                  src={product.image || '/big-laptop.png'}
+                                  alt={product.name}
+                                  width={48}
+                                  height={48}
+                                  className="object-contain"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-gray-900 truncate">{product.name}</div>
+                                <div className="text-sm text-gray-500 truncate">
+                                  {product.brand} {product.model ? `• ${product.model}` : ''}
+                                </div>
+                                <div className="text-sm font-semibold text-[#00aeef] mt-1">
+                                  {formatPrice(product.price)}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                          <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
+                            <button
+                              type="button"
+                              onClick={handleViewAllResults}
+                              className="w-full text-center text-sm text-[#00aeef] hover:underline font-medium"
+                            >
+                              View all results
+                            </button>
+                          </div>
+                        </>
+                      ) : searchTerm.trim() ? (
+                        <div className="px-4 py-3 text-center text-gray-500 text-sm">
+                          No products found
+                        </div>
+                      ) : null}
+                    </div>
+                  </>
+                )}
+              </div>
+              <button 
+                type="button"
+                onClick={handleViewAllResults}
+                className="bg-white text-gray-700 px-6 py-3 hover:bg-gray-100 transition shrink-0"
+              >
+                <CiSearch className="text-xl" />
               </button>
             </div>
           </div>
