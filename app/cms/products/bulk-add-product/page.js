@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   FiArrowLeft,
@@ -11,6 +12,7 @@ import {
 } from 'react-icons/fi';
 
 const BulkAddProductsPage = () => {
+  const router = useRouter();
   const [category, setCategory] = useState('laptop');
   const [file, setFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -18,6 +20,38 @@ const BulkAddProductsPage = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [fileInputKey, setFileInputKey] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedUser = window.localStorage.getItem('cmsUser');
+    const storedSession = window.localStorage.getItem('cmsSession');
+
+    if (!storedUser || !storedSession) {
+      router.replace('/cms/auth/login');
+      return;
+    }
+
+    try {
+      const parsedUser = JSON.parse(storedUser);
+      
+      // Ensure accesspages is an array
+      if (!Array.isArray(parsedUser.accesspages)) {
+        parsedUser.accesspages = [];
+      }
+      
+      // Admin users always have access, others need products in accesspages
+      if (parsedUser.role !== 'admin') {
+        const accessPages = parsedUser.accesspages || [];
+        if (!accessPages.includes('products')) {
+          router.replace('/cms/auth/login');
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to parse CMS user', err);
+      router.replace('/cms/auth/login');
+    }
+  }, [router]);
 
   const handleFileChange = (event) => {
     setError(null);

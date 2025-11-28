@@ -50,7 +50,20 @@ const CmsSettingsPage = () => {
       return;
     }
 
-    fetchUsers();
+    try {
+      const parsedUser = JSON.parse(storedUser);
+      
+      // Only admin users can access settings page (user management)
+      if (parsedUser.role !== 'admin') {
+        router.replace('/cms/dashboard');
+        return;
+      }
+      
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to parse CMS user', err);
+      router.replace('/cms/auth/login');
+    }
   }, [router]);
 
   const fetchUsers = async () => {
@@ -430,19 +443,7 @@ const CmsSettingsPage = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs uppercase tracking-wide text-white/60 mb-2">
-                      Full Name (optional)
-                    </label>
-                    <input
-                      type="text"
-                      name="full_name"
-                      value={formData.full_name}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/15 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#38bdf8]/60 transition"
-                      placeholder="John Doe"
-                    />
-                  </div>
+                  
 
                   <div>
                     <label className="block text-xs uppercase tracking-wide text-white/60 mb-2">
