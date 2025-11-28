@@ -299,7 +299,15 @@ const CmsDashboardPage = () => {
               </div>
 
               <div className="bg-white/10 backdrop-blur-xl rounded-2xl shadow-xl border border-white/10 p-6">
-                <h2 className="text-lg font-semibold text-white mb-5">Recent Activity</h2>
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
+                  <Link
+                    href="/cms/recent-activity"
+                    className="text-sm text-[#38bdf8] hover:text-[#60a5fa] font-medium transition"
+                  >
+                    View Activity
+                  </Link>
+                </div>
                 <ul className="space-y-5">
                   {activities.map((item) => (
                     <li key={item.id} className="pb-4 border-b border-white/10 last:pb-0 last:border-b-0">
