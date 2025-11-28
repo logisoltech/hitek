@@ -79,12 +79,20 @@ const BulkAddProductsPage = () => {
       setError(null);
       setResult(null);
 
+      // Get CMS user info for activity logging
+      const cmsUser = JSON.parse(window.localStorage.getItem('cmsUser') || '{}');
+      
       const formData = new FormData();
       formData.append('category', category);
       formData.append('file', file);
 
       const response = await fetch('https://hitek-server.onrender.com/api/products/bulk/csv', {
         method: 'POST',
+        headers: {
+          'X-CMS-User-Id': cmsUser.id || '',
+          'X-CMS-User-Name': cmsUser.username || cmsUser.name || '',
+          'X-CMS-User-Role': cmsUser.role || '',
+        },
         body: formData,
       });
 

@@ -110,16 +110,64 @@ const CmsDashboardPage = () => {
       
       setCmsUser(parsedUser);
 
-      // All authenticated users can access dashboard
-      // The sidebar will automatically filter to show only their accessible pages
-      // Placeholder: update stats/activities from API if available
-      // Example: fetch('/api/cms/overview').then(...)
+      // Fetch real activities from API
+      fetchActivities();
 
     } catch (error) {
       console.error('Failed to parse CMS session:', error);
       router.replace('/cms/auth/login');
     }
   }, [router]);
+
+  const fetchActivities = async () => {
+    try {
+      const response = await fetch('https://hitek-server.onrender.com/api/cms/activities?limit=3');
+      
+      if (!response.ok) {
+        console.error('Failed to fetch activities');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      // Map API data to display format
+      const mappedActivities = (data || []).map((activity) => {
+        const formatTimestamp = (timestamp) => {
+          if (!timestamp) return 'Unknown';
+          const date = new Date(timestamp);
+          const now = new Date();
+          const diffInMs = now.getTime() - date.getTime();
+          const diffInSeconds = Math.floor(diffInMs / 1000);
+          const diffInMinutes = Math.floor(diffInSeconds / 60);
+          const diffInHours = Math.floor(diffInMinutes / 60);
+          const diffInDays = Math.floor(diffInHours / 24);
+
+          if (diffInSeconds < 60) {
+            return 'Just now';
+          } else if (diffInMinutes < 60) {
+            return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+          } else if (diffInHours < 24) {
+            return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+          } else if (diffInDays < 7) {
+            return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+          } else {
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          }
+        };
+
+        return {
+          id: activity.id,
+          message: activity.action,
+          timestamp: formatTimestamp(activity.created_at),
+        };
+      });
+
+      setActivities(mappedActivities.length > 0 ? mappedActivities : fallbackActivities);
+    } catch (error) {
+      console.error('Failed to fetch activities:', error);
+      // Keep fallback activities on error
+    }
+  };
 
   const displayName = useMemo(() => {
     if (!cmsUser) return 'Administrator';

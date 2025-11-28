@@ -133,9 +133,15 @@ const CmsRecentActivityPage = () => {
   };
 
   const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'Unknown';
+    
+    // Parse the timestamp (handle both ISO strings and Date objects)
     const date = new Date(timestamp);
     const now = new Date();
-    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    // Calculate difference in milliseconds
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInSeconds = Math.floor(diffInMs / 1000);
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
@@ -315,10 +321,147 @@ const CmsRecentActivityPage = () => {
               {selectedActivity.details && (
                 <div>
                   <h3 className="text-sm font-semibold text-slate-300 mb-2">Details</h3>
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <pre className="text-sm text-white whitespace-pre-wrap font-sans">
-                      {JSON.stringify(selectedActivity.details, null, 2)}
-                    </pre>
+                  <div className="bg-white/5 rounded-lg p-4 space-y-3">
+                    {(() => {
+                      const details = selectedActivity.details;
+                      const type = selectedActivity.type;
+                      
+                      // Format based on activity type
+                      if (type === 'product_updated' && details.changes) {
+                        return (
+                          <div className="space-y-2">
+                            <div>
+                              <p className="text-xs text-slate-400 mb-1">Fields Updated:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {details.changes.map((field, idx) => (
+                                  <span key={idx} className="px-2 py-1 bg-[#00aeef]/20 text-[#00aeef] rounded text-xs">
+                                    {field}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            {details.brand && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Brand:</p>
+                                <p className="text-white">{details.brand}</p>
+                              </div>
+                            )}
+                            {details.price && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Price:</p>
+                                <p className="text-white">PKR {details.price}</p>
+                              </div>
+                            )}
+                            {details.stock !== undefined && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Stock:</p>
+                                <p className="text-white">{details.stock} units</p>
+                              </div>
+                            )}
+                            {details.category && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Category:</p>
+                                <p className="text-white capitalize">{details.category}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      if (type === 'product_created' || type === 'product_updated') {
+                        return (
+                          <div className="space-y-2">
+                            {details.category && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Category:</p>
+                                <p className="text-white capitalize">{details.category}</p>
+                              </div>
+                            )}
+                            {details.brand && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Brand:</p>
+                                <p className="text-white">{details.brand}</p>
+                              </div>
+                            )}
+                            {details.price && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Price:</p>
+                                <p className="text-white">PKR {details.price}</p>
+                              </div>
+                            )}
+                            {details.stock !== undefined && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Stock:</p>
+                                <p className="text-white">{details.stock} units</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      if (type === 'order_fulfilled' || type === 'order_cancelled' || type === 'order_updated') {
+                        return (
+                          <div className="space-y-2">
+                            {details.orderId && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Order ID:</p>
+                                <p className="text-white">#{details.orderId}</p>
+                              </div>
+                            )}
+                            {details.previousStatus && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Previous Status:</p>
+                                <p className="text-white capitalize">{details.previousStatus}</p>
+                              </div>
+                            )}
+                            {details.newStatus && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">New Status:</p>
+                                <p className="text-white capitalize">{details.newStatus}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      if (type === 'bulk_import') {
+                        return (
+                          <div className="space-y-2">
+                            {details.count && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Products Imported:</p>
+                                <p className="text-white font-semibold">{details.count}</p>
+                              </div>
+                            )}
+                            {details.category && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Category:</p>
+                                <p className="text-white capitalize">{details.category}</p>
+                              </div>
+                            )}
+                            {details.attempted && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Total Attempted:</p>
+                                <p className="text-white">{details.attempted}</p>
+                              </div>
+                            )}
+                            {details.failed !== undefined && details.failed > 0 && (
+                              <div>
+                                <p className="text-xs text-slate-400 mb-1">Failed:</p>
+                                <p className="text-red-400">{details.failed}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      // Fallback to JSON for unknown types
+                      return (
+                        <pre className="text-sm text-white whitespace-pre-wrap font-sans">
+                          {JSON.stringify(details, null, 2)}
+                        </pre>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
