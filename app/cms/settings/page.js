@@ -36,7 +36,6 @@ const CmsSettingsPage = () => {
     username: '',
     password: '',
     role: 'inventory_manager',
-    full_name: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -134,7 +133,6 @@ const CmsSettingsPage = () => {
       username: '',
       password: '',
       role: 'inventory_manager',
-      full_name: '',
     });
     setEditingUser(null);
     setError('');
@@ -151,7 +149,6 @@ const CmsSettingsPage = () => {
       username: user.username || '',
       password: '', // Don't pre-fill password
       role: user.role || 'inventory_manager',
-      full_name: user.full_name || '',
     });
     setShowEditModal(true);
   };
@@ -214,6 +211,8 @@ const CmsSettingsPage = () => {
       if (showEditModal && !body.password) {
         delete body.password;
       }
+      // Remove full_name if it exists (column doesn't exist in database)
+      delete body.full_name;
 
       const response = await fetch(url, {
         method,

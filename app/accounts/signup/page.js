@@ -295,6 +295,7 @@ const SignInPage = () => {
             password: formData.password,
             first_name: formData.first_name.trim(),
             last_name: formData.last_name.trim(),
+            skipOTP: true, // Skip OTP verification
           }),
         });
       } catch (fetchError) {
@@ -365,6 +366,31 @@ const SignInPage = () => {
     setOtpSent(false);
     setEmailVerified(false);
     await handleSendOTP({ preventDefault: () => {} });
+  };
+
+  const handleSkipOTP = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    // Validate inputs
+    if (!formData.first_name || !formData.last_name || !formData.email || !formData.password || !formData.confirmPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    // Skip OTP and directly register
+    setEmailVerified(true);
+    await handleCompleteRegistration();
   };
 
   const handleShippingDetails = async (e) => {
@@ -725,10 +751,20 @@ const SignInPage = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-[#00aeef] hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 rounded-md font-bold flex items-center justify-center gap-2 transition mb-4"
+                    className="w-full bg-[#00aeef] hover:bg-[#0099d9] disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 rounded-md font-bold flex items-center justify-center gap-2 transition mb-3"
                   >
                     {loading ? 'SENDING VERIFICATION CODE...' : 'SEND VERIFICATION CODE'}
                     {!loading && <FiArrowRight />}
+                  </button>
+
+                  {/* Skip OTP Button */}
+                  <button
+                    type="button"
+                    onClick={handleSkipOTP}
+                    disabled={loading}
+                    className="w-full bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 rounded-md font-semibold flex items-center justify-center gap-2 transition mb-4"
+                  >
+                    {loading ? 'CREATING ACCOUNT...' : 'Skip OTP & Create Account'}
                   </button>
 
                   {/* Divider */}
