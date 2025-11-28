@@ -74,16 +74,20 @@ const SignInPage = () => {
           setSuccess(true);
           setError('');
           
+          // Hide signup/signin forms and OTP form
+          setActiveTab('signup'); // Set to signup to hide signin form
+          setShowOTPForm(false);
+          
           // Check if user needs to complete shipping details
           const hasShipping = userData.user.phone || userData.user.shipment_address;
           
           if (!hasShipping) {
-            // Show shipping form
+            // Show shipping form and hide signup form immediately
             setUserId(userData.user.id);
-            setTimeout(() => {
-              setShowShippingForm(true);
-              setSuccess(false);
-            }, 1500);
+            setShowShippingForm(true);
+            setShowOTPForm(false);
+            setActiveTab('signup'); // Hide signin tab
+            setSuccess(false);
           } else {
             // Redirect to home
             setTimeout(() => {
@@ -701,7 +705,7 @@ const SignInPage = () => {
                     type="button"
                     onClick={handleGoogleLogin}
                     disabled={loading}
-                    className="w-full border-2 border-gray-300 text-gray-700 hover:bg-gray-50 py-3 rounded-md font-semibold flex items-center justify-center gap-2 transition"
+                    className="w-full border-2 cursor-pointer border-gray-300 text-gray-700 hover:bg-gray-50 py-3 rounded-md font-semibold flex items-center justify-center gap-2 transition"
                   >
                     <FcGoogle className="text-2xl" />
                     Login with Google
