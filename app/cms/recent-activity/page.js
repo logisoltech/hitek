@@ -135,27 +135,61 @@ const CmsRecentActivityPage = () => {
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'Unknown';
     
-    // Parse the timestamp (handle both ISO strings and Date objects)
-    const date = new Date(timestamp);
-    const now = new Date();
-    
-    // Calculate difference in milliseconds
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInSeconds = Math.floor(diffInMs / 1000);
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
+    try {
+      // Parse the timestamp - ensure it's treated as UTC/ISO format
+      let date;
+      if (typeof timestamp === 'string') {
+        // If timestamp doesn't have timezone info, assume it's UTC
+        if (timestamp.endsWith('Z') || timestamp.includes('+') || timestamp.includes('-', 10)) {
+          date = new Date(timestamp);
+        } else {
+          // If no timezone, append Z to treat as UTC
+          date = new Date(timestamp + (timestamp.includes('T') ? 'Z' : ''));
+        }
+      } else {
+        date = new Date(timestamp);
+      }
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid timestamp:', timestamp);
+        return 'Invalid date';
+      }
+      
+      const now = new Date();
+      
+      // Calculate difference in milliseconds
+      // Both dates are in UTC internally, so this should be correct
+      const diffInMs = now.getTime() - date.getTime();
+      
+      // Handle negative differences (future dates) - might be timezone issue
+      if (diffInMs < 0) {
+        // If negative but less than 1 hour, might be timezone offset, treat as "just now"
+        if (Math.abs(diffInMs) < 3600000) {
+          return 'Just now';
+        }
+        return 'Just now'; // For safety, treat future dates as "just now"
+      }
+      
+      const diffInSeconds = Math.floor(diffInMs / 1000);
+      const diffInMinutes = Math.floor(diffInSeconds / 60);
+      const diffInHours = Math.floor(diffInMinutes / 60);
+      const diffInDays = Math.floor(diffInHours / 24);
 
-    if (diffInSeconds < 60) {
-      return 'Just now';
-    } else if (diffInMinutes < 60) {
-      return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
-    } else if (diffInHours < 24) {
-      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    } else if (diffInDays < 7) {
-      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      if (diffInSeconds < 60) {
+        return 'Just now';
+      } else if (diffInMinutes < 60) {
+        return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+      } else if (diffInHours < 24) {
+        return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+      } else if (diffInDays < 7) {
+        return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+      } else {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    } catch (err) {
+      console.error('Error formatting timestamp:', err, timestamp);
+      return 'Unknown';
     }
   };
 

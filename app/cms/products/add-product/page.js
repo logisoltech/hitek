@@ -236,12 +236,19 @@ const CmsAddProductPage = () => {
       // Get CMS user info for activity logging
       const cmsUser = JSON.parse(window.localStorage.getItem('cmsUser') || '{}');
       
+      // Debug: Log user object
+      console.log('Sending user headers:', {
+        id: cmsUser.id,
+        username: cmsUser.username,
+        role: cmsUser.role
+      });
+      
       const response = await fetch('https://hitek-server.onrender.com/api/products', {
         method: 'POST',
         headers: {
-          'X-CMS-User-Id': cmsUser.id || '',
-          'X-CMS-User-Name': cmsUser.username || cmsUser.name || '',
-          'X-CMS-User-Role': cmsUser.role || '',
+          'X-CMS-User-Id': String(cmsUser.id || ''),
+          'X-CMS-User-Name': String(cmsUser.username || cmsUser.user_name || ''),
+          'X-CMS-User-Role': String(cmsUser.role || ''),
         },
         body: formData,
       });

@@ -523,13 +523,18 @@ const CmsProductsPage = () => {
       // Get CMS user info for activity logging
       const cmsUser = JSON.parse(window.localStorage.getItem('cmsUser') || '{}');
       
+      // Add user info to FormData as well (since headers might not work with FormData)
+      formData.append('cmsUserId', String(cmsUser.id || ''));
+      formData.append('cmsUserName', String(cmsUser.username || cmsUser.user_name || ''));
+      formData.append('cmsUserRole', String(cmsUser.role || ''));
+      
       const categorySlug = editTarget.type === 'printer' ? 'printer' : 'laptop';
       const response = await fetch(`https://hitek-server.onrender.com/api/products/${categorySlug}/${editTarget.id}`, {
         method: 'PATCH',
         headers: {
-          'X-CMS-User-Id': cmsUser.id || '',
-          'X-CMS-User-Name': cmsUser.username || cmsUser.name || '',
-          'X-CMS-User-Role': cmsUser.role || '',
+          'X-CMS-User-Id': String(cmsUser.id || ''),
+          'X-CMS-User-Name': String(cmsUser.username || cmsUser.user_name || ''),
+          'X-CMS-User-Role': String(cmsUser.role || ''),
         },
         body: formData,
       });
