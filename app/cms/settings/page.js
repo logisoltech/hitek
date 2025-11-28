@@ -20,8 +20,7 @@ import {
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin', description: 'Full access to all CMS features' },
-  { value: 'inventory_manager', label: 'Inventory Manager', description: 'Access to inventory page only' },
-  { value: 'product_adder', label: 'Product Adder', description: 'Access to products page only' },
+  { value: 'inventory_manager', label: 'Inventory Manager', description: 'Access to inventory and products pages' },
   { value: 'order_manager', label: 'Order Manager', description: 'Access to orders page only' },
 ];
 
@@ -36,7 +35,7 @@ const CmsSettingsPage = () => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    role: 'product_adder',
+    role: 'inventory_manager',
     full_name: '',
   });
   const [saving, setSaving] = useState(false);
@@ -121,7 +120,7 @@ const CmsSettingsPage = () => {
     setFormData({
       username: '',
       password: '',
-      role: 'product_adder',
+      role: 'inventory_manager',
       full_name: '',
     });
     setEditingUser(null);
@@ -138,7 +137,7 @@ const CmsSettingsPage = () => {
     setFormData({
       username: user.username || '',
       password: '', // Don't pre-fill password
-      role: user.role || 'product_adder',
+      role: user.role || 'inventory_manager',
       full_name: user.full_name || '',
     });
     setShowEditModal(true);
@@ -239,7 +238,6 @@ const CmsSettingsPage = () => {
     const colors = {
       admin: 'from-[#ef4444] to-[#f97316]',
       inventory_manager: 'from-[#22c55e] to-[#10b981]',
-      product_adder: 'from-[#0ea5e9] to-[#38bdf8]',
       order_manager: 'from-[#a855f7] to-[#6366f1]',
       staff: 'from-[#64748b] to-[#475569]',
     };
