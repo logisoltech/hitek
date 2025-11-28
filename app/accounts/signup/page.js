@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiArrowRight } from 'react-icons/fi';
 import { FaRegEye, FaRegEyeSlash } from 'react-icons/fa6';
@@ -37,6 +37,70 @@ const SignInPage = () => {
     city: '',
     address: '',
   });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Check for Google OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const googleSuccess = urlParams.get('google_success');
+    const token = urlParams.get('token');
+    const error = urlParams.get('error');
+
+    if (error) {
+      setError(decodeURIComponent(error));
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+
+    if (googleSuccess === '1' && token) {
+      try {
+        // Decode user data from token (base64 URL-safe)
+        // Convert URL-safe base64 back to standard base64
+        let base64 = decodeURIComponent(token).replace(/-/g, '+').replace(/_/g, '/');
+        // Add padding if needed
+        while (base64.length % 4) {
+          base64 += '=';
+        }
+        const decodedToken = atob(base64);
+        const userData = JSON.parse(decodedToken);
+        
+        if (userData.user && userData.session) {
+          // Store user data
+          localStorage.setItem('user', JSON.stringify(userData.user));
+          localStorage.setItem('session', JSON.stringify(userData.session));
+          
+          setSuccess(true);
+          setError('');
+          
+          // Check if user needs to complete shipping details
+          const hasShipping = userData.user.phone || userData.user.shipment_address;
+          
+          if (!hasShipping) {
+            // Show shipping form
+            setUserId(userData.user.id);
+            setTimeout(() => {
+              setShowShippingForm(true);
+              setSuccess(false);
+            }, 1500);
+          } else {
+            // Redirect to home
+            setTimeout(() => {
+              router.push('/');
+            }, 1500);
+          }
+          
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (err) {
+        console.error('Failed to process Google OAuth token:', err);
+        setError('Failed to process Google login. Please try again.');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [router]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -465,8 +529,8 @@ const SignInPage = () => {
   };
 
   const handleGoogleLogin = () => {
-    // Implement Google OAuth login here
-    alert('Google login will be implemented with OAuth');
+    // Redirect to backend Google OAuth endpoint
+    window.location.href = 'https://hitek-server.onrender.com/api/auth/google';
   };
 
   return (
