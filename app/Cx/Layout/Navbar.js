@@ -520,10 +520,10 @@ const Navbar = () => {
       </div>
 
       {/* Middle Bar - Logo, Search & Icons */}
-      <div className="bg-black text-white py-4 px-8">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-4">
+      <div className="bg-black text-white py-4 px-4 lg:px-8">
+        <div className="max-w-7xl mx-auto flex flex-row items-center lg:justify-between gap-4">
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <Link href="/">
             <Image 
               src="/navbar-logo.png" 
@@ -535,137 +535,147 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Search Bar */}
-          <div className="flex-1 w-full lg:w-auto max-w-2xl relative z-50">
-            <div className="flex rounded overflow-visible relative">
-              <div className="relative z-10">
-                <button
-                  type="button"
-                  onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                  className="bg-gray-300 text-gray-700 px-4 py-[14px] flex items-center gap-2 border-r border-gray-400 hover:bg-gray-400 transition whitespace-nowrap"
-                >
-                  <span className="text-sm font-medium">{selectedCategory}</span>
-                  <FaChevronDown className={`text-xs transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isCategoryDropdownOpen && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-[45]" 
-                      onClick={() => setIsCategoryDropdownOpen(false)}
-                    />
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-[60] min-w-[180px]">
-                      {categories.map((category) => (
-                        <button
-                          key={category}
-                          type="button"
-                          onClick={() => {
-                            setSelectedCategory(category);
-                            setIsCategoryDropdownOpen(false);
-                            if (searchTerm.trim()) {
-                              performSearch(searchTerm);
-                            }
-                          }}
-                          className={`w-full text-left px-4 text-black py-2 text-sm hover:bg-gray-100 transition ${
-                            selectedCategory === category ? 'bg-gray-100 font-medium' : ''
-                          }`}
-                        >
-                          {category}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="flex-1 relative z-10">
-                <input 
-                  type="text" 
-                  value={searchTerm}
-                  onChange={handleSearchInputChange}
-                  onFocus={() => {
-                    if (searchTerm.trim() && (searchResults.length > 0 || isSearching)) {
-                      setIsSearchDropdownOpen(true);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleSearchSubmit(e);
-                    }
-                  }}
-                  placeholder="Search for anything..." 
-                  className="w-full px-4 py-3 text-gray-900 bg-white focus:outline-none"
-                />
-                {isSearchDropdownOpen && searchTerm.trim() && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-[45]" 
-                      onClick={() => setIsSearchDropdownOpen(false)}
-                    />
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-xl z-[60] max-h-96 overflow-y-auto w-full">
-                      {isSearching ? (
-                        <div className="px-4 py-3 text-center text-gray-500 text-sm">
-                          Searching...
-                        </div>
-                      ) : searchResults.length > 0 ? (
-                        <>
-                          {searchResults.map((product) => (
-                            <button
-                              key={`${product.type}-${product.id}`}
-                              type="button"
-                              onClick={() => handleResultClick(product)}
-                              className="w-full text-left px-4 py-3 hover:bg-gray-100 transition flex items-center gap-3 border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="w-12 h-12 shrink-0 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
-                                <Image
-                                  src={product.image || '/big-laptop.png'}
-                                  alt={product.name}
-                                  width={48}
-                                  height={48}
-                                  className="object-contain"
-                                />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-gray-900 truncate">{product.name}</div>
-                                <div className="text-sm text-gray-500 truncate">
-                                  {product.brand} {product.model ? `• ${product.model}` : ''}
-                                </div>
-                                <div className="text-sm font-semibold text-[#00aeef] mt-1">
-                                  {formatPrice(product.price)}
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-                          <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
-                            <button
-                              type="button"
-                              onClick={handleViewAllResults}
-                              className="w-full text-center text-sm text-[#00aeef] hover:underline font-medium"
-                            >
-                              View all results
-                            </button>
+          {/* Mobile Menu Toggle - Only visible on mobile */}
+          <button 
+            className="lg:hidden text-2xl text-white shrink-0 ml-auto" 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <CiMenuFries /> : <CiMenuBurger />}
+          </button>
+
+          {/* Search Bar - Hidden on mobile */}
+          <div className="hidden lg:flex flex-1">
+            <div className="w-full max-w-2xl mx-auto relative z-50">
+              <div className="flex rounded overflow-visible relative">
+                <div className="relative z-10">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                    className="bg-gray-300 text-gray-700 px-4 py-[14px] flex items-center gap-2 border-r border-gray-400 hover:bg-gray-400 transition whitespace-nowrap"
+                  >
+                    <span className="text-sm font-medium">{selectedCategory}</span>
+                    <FaChevronDown className={`text-xs transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isCategoryDropdownOpen && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-[45]" 
+                        onClick={() => setIsCategoryDropdownOpen(false)}
+                      />
+                      <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-[60] min-w-[180px]">
+                        {categories.map((category) => (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCategory(category);
+                              setIsCategoryDropdownOpen(false);
+                              if (searchTerm.trim()) {
+                                performSearch(searchTerm);
+                              }
+                            }}
+                            className={`w-full text-left px-4 text-black py-2 text-sm hover:bg-gray-100 transition ${
+                              selectedCategory === category ? 'bg-gray-100 font-medium' : ''
+                            }`}
+                          >
+                            {category}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="flex-1 relative z-10">
+                  <input 
+                    type="text" 
+                    value={searchTerm}
+                    onChange={handleSearchInputChange}
+                    onFocus={() => {
+                      if (searchTerm.trim() && (searchResults.length > 0 || isSearching)) {
+                        setIsSearchDropdownOpen(true);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSearchSubmit(e);
+                      }
+                    }}
+                    placeholder="Search for anything..." 
+                    className="w-full px-4 py-3 text-gray-900 bg-white focus:outline-none"
+                  />
+                  {isSearchDropdownOpen && searchTerm.trim() && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-[45]" 
+                        onClick={() => setIsSearchDropdownOpen(false)}
+                      />
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-xl z-[60] max-h-96 overflow-y-auto w-full">
+                        {isSearching ? (
+                          <div className="px-4 py-3 text-center text-gray-500 text-sm">
+                            Searching...
                           </div>
-                        </>
-                      ) : searchTerm.trim() ? (
-                        <div className="px-4 py-3 text-center text-gray-500 text-sm">
-                          No products found
-                        </div>
-                      ) : null}
-                    </div>
-                  </>
-                )}
+                        ) : searchResults.length > 0 ? (
+                          <>
+                            {searchResults.map((product) => (
+                              <button
+                                key={`${product.type}-${product.id}`}
+                                type="button"
+                                onClick={() => handleResultClick(product)}
+                                className="w-full text-left px-4 py-3 hover:bg-gray-100 transition flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="w-12 h-12 shrink-0 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                                  <Image
+                                    src={product.image || '/big-laptop.png'}
+                                    alt={product.name}
+                                    width={48}
+                                    height={48}
+                                    className="object-contain"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-gray-900 truncate">{product.name}</div>
+                                  <div className="text-sm text-gray-500 truncate">
+                                    {product.brand} {product.model ? `• ${product.model}` : ''}
+                                  </div>
+                                  <div className="text-sm font-semibold text-[#00aeef] mt-1">
+                                    {formatPrice(product.price)}
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                            <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
+                              <button
+                                type="button"
+                                onClick={handleViewAllResults}
+                                className="w-full text-center text-sm text-[#00aeef] hover:underline font-medium"
+                              >
+                                View all results
+                              </button>
+                            </div>
+                          </>
+                        ) : searchTerm.trim() ? (
+                          <div className="px-4 py-3 text-center text-gray-500 text-sm">
+                            No products found
+                          </div>
+                        ) : null}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <button 
+                  type="button"
+                  onClick={handleViewAllResults}
+                  className="bg-white text-gray-700 px-6 py-3 hover:bg-gray-100 transition shrink-0"
+                >
+                  <CiSearch className="text-xl" />
+                </button>
               </div>
-              <button 
-                type="button"
-                onClick={handleViewAllResults}
-                className="bg-white text-gray-700 px-6 py-3 hover:bg-gray-100 transition shrink-0"
-              >
-                <CiSearch className="text-xl" />
-              </button>
             </div>
           </div>
 
           {/* Icons */}
-          <div className="flex items-center gap-6">
+          <div className="hidden lg:flex items-center gap-6">
             <div 
               className="relative"
               onMouseEnter={() => setIsCartHovered(true)}
@@ -739,23 +749,16 @@ const Navbar = () => {
                 </>
               )}
             </div>
-            {/* Mobile Menu Toggle */}
-            <button 
-              className="lg:hidden text-2xl" 
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? <CiMenuFries /> : <CiMenuBurger />}
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Bottom Bar - Navigation */}
-      <div className="bg-[#00aeef] text-white">
+      {/* Bottom Bar - Navigation - Hidden on mobile */}
+      <div className="hidden lg:block bg-[#00aeef] text-white">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col lg:flex-row items-center justify-between lg:flex-nowrap">
+          <div className="flex flex-row items-center justify-between flex-nowrap">
             {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center shrink-0">
+            <div className="flex items-center shrink-0">
               <a href="/" className="flex items-center gap-2 px-4 py-4 bg-transparent hover:bg-[#00688f] transition shrink-0 whitespace-nowrap">
                 <CiHome className="text-2xl shrink-0" />
                 <span className="text-sm font-medium">Home</span>
@@ -1220,57 +1223,322 @@ const Navbar = () => {
               </a>
             </div>
 
-            {/* Mobile Navigation */}
-            <div className={`lg:hidden w-full ${isMobileMenuOpen ? 'block' : 'hidden'}`}>
-              <div className="flex flex-col">
-                <a href="/" className="flex items-center gap-2 px-4 py-3 bg-[#00688f] border-b border-[#00aeef]">
-                  <CiHome className="text-xl" />
-                  <span className="text-sm font-medium">Home</span>
-                </a>
-                <Link href="/all-products" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
-                  <CiBoxes className="text-xl" />
-                  <span className="text-sm">All Products</span>
-                  <FaChevronDown className="ml-auto" />
-                </Link>
-                <a href="#" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
-                  <CiLaptop className="text-xl" />
-                  <span className="text-sm">Laptops</span>
-                  <FaChevronDown className="ml-auto" />
-                </a>
-                <a href="#" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
-                  <PiDesktopTowerThin className="text-xl" />
-                  <span className="text-sm">Desktop PCs</span>
-                  <FaChevronDown className="ml-auto" />
-                </a>
-                <a href="#" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
-                  <IoPrintOutline className="text-xl" />
-                  <span className="text-sm">Printers & Toners</span>
-                  <FaChevronDown className="ml-auto" />
-                </a>
-                <a href="#" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
-                  <CiMonitor className="text-xl" />
-                  <span className="text-sm">LED Monitors</span>
-                  <FaChevronDown className="ml-auto" />
-                </a>
-                <a href="#" className="flex items-center gap-2 px-4 py-3 border-b border-[#00aeef] hover:bg-[#00688f]">
-                  <GrRotateRight className="text-xl" />
-                  <span className="text-sm">Refurbished</span>
-                  <FaChevronDown className="ml-auto" />
-                </a>
-              </div>
-            </div>
-
             {/* Phone Number */}
-            <div className="hidden lg:flex items-center gap-2 px-6 py-4 border-l border-[#00aeef] shrink-0 whitespace-nowrap">
+            <div className="flex items-center gap-2 px-6 py-4 border-l border-[#00aeef] shrink-0 whitespace-nowrap">
               <CiPhone className="shrink-0" />
               <span className="font-medium">+92-213-2410225</span>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Mobile Phone Number */}
-          <div className="lg:hidden flex items-center justify-center gap-2 px-4 py-3 border-t border-[#00aeef]">
-            <CiPhone className='text-2xl'/>
-            <span className="font-medium">+92-213-2410225</span>
+      {/* Mobile Menu - Full Screen Overlay */}
+      <div className={`lg:hidden fixed inset-0 z-50 bg-black/50 transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsMobileMenuOpen(false)}>
+        <div 
+          className={`fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-xl transform transition-transform duration-300 ease-in-out overflow-y-auto ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Mobile Menu Header */}
+          <div className="bg-black text-white p-4 flex items-center justify-between border-b border-gray-700 sticky top-0 z-10">
+            <Image 
+              src="/navbar-logo.png" 
+              alt="Hi-Tek Computers Logo" 
+              width={100} 
+              height={50}
+              className="object-contain"
+            />
+            <button 
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="text-2xl hover:text-gray-300 transition"
+            >
+              <CiMenuFries />
+            </button>
+          </div>
+
+          {/* Mobile Menu Content */}
+          <div className="flex flex-col">
+            {/* Search Bar in Mobile Menu */}
+            <div className="p-4 border-b border-gray-200 bg-gray-50">
+              <div className="relative z-50">
+                <div className="flex rounded overflow-visible relative">
+                  <div className="relative z-10">
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                      className="bg-gray-300 text-gray-700 px-3 py-2 text-xs flex items-center gap-2 border-r border-gray-400 hover:bg-gray-400 transition whitespace-nowrap"
+                    >
+                      <span className="text-xs font-medium">{selectedCategory}</span>
+                      <FaChevronDown className={`text-xs transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isCategoryDropdownOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-[45]" 
+                          onClick={() => setIsCategoryDropdownOpen(false)}
+                        />
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-[60] min-w-[180px]">
+                          {categories.map((category) => (
+                            <button
+                              key={category}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCategory(category);
+                                setIsCategoryDropdownOpen(false);
+                                if (searchTerm.trim()) {
+                                  performSearch(searchTerm);
+                                }
+                              }}
+                              className={`w-full text-left px-4 text-black py-2 text-sm hover:bg-gray-100 transition ${
+                                selectedCategory === category ? 'bg-gray-100 font-medium' : ''
+                              }`}
+                            >
+                              {category}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex-1 relative z-10">
+                    <input 
+                      type="text" 
+                      value={searchTerm}
+                      onChange={handleSearchInputChange}
+                      onFocus={() => {
+                        if (searchTerm.trim() && (searchResults.length > 0 || isSearching)) {
+                          setIsSearchDropdownOpen(true);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearchSubmit(e);
+                          setIsMobileMenuOpen(false);
+                        }
+                      }}
+                      placeholder="Search..." 
+                      className="w-full px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none"
+                    />
+                    {isSearchDropdownOpen && searchTerm.trim() && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-[45]" 
+                          onClick={() => setIsSearchDropdownOpen(false)}
+                        />
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-xl z-[60] max-h-96 overflow-y-auto w-full">
+                          {isSearching ? (
+                            <div className="px-4 py-3 text-center text-gray-500 text-sm">
+                              Searching...
+                            </div>
+                          ) : searchResults.length > 0 ? (
+                            <>
+                              {searchResults.map((product) => (
+                                <button
+                                  key={`${product.type}-${product.id}`}
+                                  type="button"
+                                  onClick={() => {
+                                    handleResultClick(product);
+                                    setIsMobileMenuOpen(false);
+                                  }}
+                                  className="w-full text-left px-4 py-3 hover:bg-gray-100 transition flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                                >
+                                  <div className="w-12 h-12 shrink-0 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                                    <Image
+                                      src={product.image || '/big-laptop.png'}
+                                      alt={product.name}
+                                      width={48}
+                                      height={48}
+                                      className="object-contain"
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-gray-900 truncate text-sm">{product.name}</div>
+                                    <div className="text-xs text-gray-500 truncate">
+                                      {product.brand} {product.model ? `• ${product.model}` : ''}
+                                    </div>
+                                    <div className="text-xs font-semibold text-[#00aeef] mt-1">
+                                      {formatPrice(product.price)}
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                              <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleViewAllResults();
+                                    setIsMobileMenuOpen(false);
+                                  }}
+                                  className="w-full text-center text-sm text-[#00aeef] hover:underline font-medium"
+                                >
+                                  View all results
+                                </button>
+                              </div>
+                            </>
+                          ) : searchTerm.trim() ? (
+                            <div className="px-4 py-3 text-center text-gray-500 text-sm">
+                              No products found
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      handleViewAllResults();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="bg-white text-gray-700 px-3 py-2 hover:bg-gray-100 transition shrink-0"
+                  >
+                    <CiSearch className="text-lg" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* User Account Section */}
+            <div className="p-4 border-b border-gray-200">
+              {currentUser ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#00aeef] flex items-center justify-center text-sm font-semibold text-white">
+                    {userInitials}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">{currentUser.name || currentUser.email || 'User'}</div>
+                    <div className="text-xs text-gray-500">Account</div>
+                  </div>
+                  <Link 
+                    href="/profile"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="text-sm text-[#00aeef]"
+                  >
+                    View Profile
+                  </Link>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsProfileHovered(true);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-2 hover:bg-gray-100 rounded transition"
+                >
+                  <CiUser className="text-2xl text-gray-700" />
+                  <span className="text-sm font-medium text-gray-900">Login / Sign Up</span>
+                </button>
+              )}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="p-4 border-b border-gray-200 grid grid-cols-3 gap-2">
+              <Link 
+                href="/cart"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex flex-col items-center gap-2 p-3 hover:bg-gray-100 rounded transition text-center"
+              >
+                <div className="relative">
+                  <CiShoppingCart className="text-2xl text-gray-700" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-[#00aeef] text-white text-xs rounded-full min-w-5 h-5 flex items-center justify-center font-bold px-1">
+                      {cartCount}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-700">Cart</span>
+              </Link>
+              <button className="flex flex-col items-center gap-2 p-3 hover:bg-gray-100 rounded transition text-center">
+                <CiHeart className="text-2xl text-gray-700" />
+                <span className="text-xs text-gray-700">Wishlist</span>
+              </button>
+              <div className="flex flex-col items-center gap-2 p-3">
+                <CiPhone className="text-2xl text-gray-700" />
+                <span className="text-xs text-gray-700">Call</span>
+                <a href="tel:+922132410225" className="text-xs text-[#00aeef] font-medium">+92-213-2410225</a>
+              </div>
+            </div>
+
+            {/* Navigation Links */}
+            <div className="flex flex-col">
+              <a 
+                href="/" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition"
+              >
+                <CiHome className="text-xl text-gray-700" />
+                <span className="text-sm font-medium text-gray-900">Home</span>
+              </a>
+              <Link 
+                href="/all-products" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition"
+              >
+                <CiBoxes className="text-xl text-gray-700" />
+                <span className="text-sm font-medium text-gray-900">All Products</span>
+                <FaChevronRight className="ml-auto text-gray-400" />
+              </Link>
+              <a 
+                href="/laptops" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition"
+              >
+                <CiLaptop className="text-xl text-gray-700" />
+                <span className="text-sm font-medium text-gray-900">Laptops</span>
+                <FaChevronRight className="ml-auto text-gray-400" />
+              </a>
+              <a 
+                href="#" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition"
+              >
+                <PiDesktopTowerThin className="text-xl text-gray-700" />
+                <span className="text-sm font-medium text-gray-900">Desktop PCs</span>
+                <FaChevronRight className="ml-auto text-gray-400" />
+              </a>
+              <a 
+                href="/printers" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition"
+              >
+                <IoPrintOutline className="text-xl text-gray-700" />
+                <span className="text-sm font-medium text-gray-900">Printers & Toners</span>
+                <FaChevronRight className="ml-auto text-gray-400" />
+              </a>
+              <a 
+                href="/led-monitors" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition"
+              >
+                <CiMonitor className="text-xl text-gray-700" />
+                <span className="text-sm font-medium text-gray-900">LED Monitors</span>
+                <FaChevronRight className="ml-auto text-gray-400" />
+              </a>
+              <a 
+                href="#" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition"
+              >
+                <GrRotateRight className="text-xl text-gray-700" />
+                <span className="text-sm font-medium text-gray-900">Refurbished</span>
+                <FaChevronRight className="ml-auto text-gray-400" />
+              </a>
+            </div>
+
+            {/* Logout Button if logged in */}
+            {currentUser && (
+              <div className="p-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 rounded transition"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
