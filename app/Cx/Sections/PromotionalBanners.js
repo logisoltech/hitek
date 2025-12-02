@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const PromotionalBanners = () => {
   return (
@@ -9,7 +10,7 @@ const PromotionalBanners = () => {
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* HP LaserJet Banner */}
-          <div className="relative rounded-lg overflow-hidden group cursor-pointer">
+          <Link href="/printers?brand=HP" className="relative rounded-lg overflow-hidden group cursor-pointer block">
             <Image 
               src="/blue-Banner.png" 
               alt="HP LaserJet Toners and Drum Units" 
@@ -27,10 +28,10 @@ const PromotionalBanners = () => {
                 </h2>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* ViewSonic Monitor Banner */}
-          <div className="relative rounded-lg overflow-hidden group cursor-pointer">
+          <Link href="/all-products" className="relative rounded-lg overflow-hidden group cursor-pointer block">
             <Image 
               src="/Drk-blue-Banner.png" 
               alt="24 Viewsonic LED Monitor" 
@@ -48,7 +49,7 @@ const PromotionalBanners = () => {
                 </h2>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
       </div>
     </div>
