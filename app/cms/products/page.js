@@ -44,7 +44,7 @@ const sanitizeProduct = (item, type) => {
   if (!item) return null;
   const resolvedType = type || item.type || 'laptop';
   const images = extractImageArray(item);
-  const image = images[0] || item.image || (resolvedType === 'printer' ? '/printer-category.png' : '/laptop-category.jpg');
+    const image = images[0] || item.image || (resolvedType === 'printer' || resolvedType === 'scanner' ? '/printer-category.png' : '/laptop-category.jpg');
   const price = parseNumeric(item.price, 0);
   return {
     ...item,
@@ -61,12 +61,14 @@ const sanitizeProduct = (item, type) => {
       item.description ||
       (resolvedType === 'printer'
         ? [item.resolution, item.copyfeature, item.scanfeature, item.duplex].filter(Boolean).join(' • ')
-        : item.processor || item.graphics || 'No description provided.'),
+        : resolvedType === 'scanner'
+          ? [item.resolution, item.color_scan, item.duplex, item.wireless].filter(Boolean).join(' • ')
+          : item.processor || item.graphics || 'No description provided.'),
     price,
     priceLabel: price > 0 ? `PKR ${price.toLocaleString('en-PK')}` : 'Price on request',
     image,
     images,
-    category: resolvedType === 'printer' ? 'Printers' : 'Laptops',
+    category: resolvedType === 'printer' ? 'Printers' : resolvedType === 'scanner' ? 'Scanners' : 'Laptops',
     stock: parseNumeric(item.stock, 10),
     rating: parseNumeric(item.rating, 4.7),
     reviews: parseNumeric(item.reviews, 0),
@@ -112,6 +114,15 @@ const GENERAL_FIELD_CONFIG = {
     { id: 'price', label: 'Price (PKR)', type: 'text', placeholder: '120000' },
     { id: 'stock', label: 'Stock Quantity', type: 'number', placeholder: '15' },
   ],
+  scanner: [
+    { id: 'name', label: 'Product Name', type: 'text', placeholder: 'HP ScanJet Pro' },
+    { id: 'brand', label: 'Brand', type: 'text', placeholder: 'HP' },
+    { id: 'model', label: 'Model', type: 'text', placeholder: 'ScanJet Pro' },
+    { id: 'series', label: 'Series', type: 'text', placeholder: '2500' },
+    { id: 'sku', label: 'SKU / Identifier', type: 'text', placeholder: 'SCN-0001' },
+    { id: 'price', label: 'Price (PKR)', type: 'text', placeholder: '50000' },
+    { id: 'stock', label: 'Stock Quantity', type: 'number', placeholder: '10' },
+  ],
 };
 
 const LAPTOP_SPEC_FIELDS = [
@@ -144,6 +155,19 @@ const PRINTER_SPEC_FIELDS = [
   { id: 'duplex', label: 'Duplex', sourceKey: 'duplex', placeholder: 'Yes / No' },
   { id: 'copyFeature', label: 'Copy Feature', sourceKey: 'copyfeature', placeholder: 'Yes / No' },
   { id: 'scanFeature', label: 'Scan Feature', sourceKey: 'scanfeature', placeholder: 'Yes / No' },
+  { id: 'wireless', label: 'Wireless', sourceKey: 'wireless', placeholder: 'Yes / No' },
+];
+
+const SCANNER_SPEC_FIELDS = [
+  { id: 'memory', label: 'Memory', sourceKey: 'memory', placeholder: '128 MB' },
+  { id: 'paper_types', label: 'Paper Types', sourceKey: 'paper_types', placeholder: 'Plain paper, Photo paper' },
+  { id: 'paper_size', label: 'Paper Size', sourceKey: 'paper_size', placeholder: 'A4, Letter' },
+  { id: 'duplex', label: 'Duplex', sourceKey: 'duplex', placeholder: 'Yes / No' },
+  { id: 'resolution', label: 'Resolution', sourceKey: 'resolution', placeholder: 'Up to 1200 DPI' },
+  { id: 'power', label: 'Power', sourceKey: 'power', placeholder: '220 to 240 VAC (± 10%), 50/60 Hz' },
+  { id: 'weight', label: 'Weight', sourceKey: 'weight', placeholder: '3.5 kg' },
+  { id: 'dimensions', label: 'Dimensions', sourceKey: 'dimensions', placeholder: '425.2 x 304.1 x 149.1 mm' },
+  { id: 'color_scan', label: 'Color Scan', sourceKey: 'color_scan', placeholder: 'Yes / No' },
   { id: 'wireless', label: 'Wireless', sourceKey: 'wireless', placeholder: 'Yes / No' },
 ];
 
@@ -222,19 +246,26 @@ const CmsProductsPage = () => {
       try {
         setLoading(true);
         setError('');
-        const [laptopsRes, printersRes] = await Promise.all([
+        const [laptopsRes, printersRes, scannersRes] = await Promise.all([
           fetch('https://hitek-server.onrender.com/api/laptops'),
           fetch('https://hitek-server.onrender.com/api/printers'),
+          fetch('https://hitek-server.onrender.com/api/scanners'),
         ]);
 
         if (!laptopsRes.ok) throw new Error('Failed to load laptops');
         if (!printersRes.ok) throw new Error('Failed to load printers');
+        if (!scannersRes.ok) throw new Error('Failed to load scanners');
 
-        const [laptopsData, printersData] = await Promise.all([laptopsRes.json(), printersRes.json()]);
+        const [laptopsData, printersData, scannersData] = await Promise.all([
+          laptopsRes.json(),
+          printersRes.json(),
+          scannersRes.json(),
+        ]);
 
         const sanitized = [
           ...(Array.isArray(laptopsData) ? laptopsData.map((item) => sanitizeProduct(item, 'laptop')) : []),
           ...(Array.isArray(printersData) ? printersData.map((item) => sanitizeProduct(item, 'printer')) : []),
+          ...(Array.isArray(scannersData) ? scannersData.map((item) => sanitizeProduct(item, 'scanner')) : []),
         ].filter(Boolean);
 
         setProducts(sanitized);
@@ -265,6 +296,7 @@ const CmsProductsPage = () => {
     const total = products.length;
     const laptops = products.filter((product) => product.type === 'laptop').length;
     const printers = products.filter((product) => product.type === 'printer').length;
+    const scanners = products.filter((product) => product.type === 'scanner').length;
     const averagePrice =
       products.length > 0
         ? products.reduce((sum, product) => sum + (Number.isFinite(product.price) ? product.price : 0), 0) /
@@ -275,6 +307,7 @@ const CmsProductsPage = () => {
       total,
       laptops,
       printers,
+      scanners,
       averagePrice: Math.round(averagePrice),
     };
   }, [products]);
@@ -326,7 +359,14 @@ const CmsProductsPage = () => {
     setEditCover(null);
 
     try {
-      const endpoint = product.type === 'printer' ? 'printers' : 'laptops';
+      let endpoint;
+      if (product.type === 'printer') {
+        endpoint = 'printers';
+      } else if (product.type === 'scanner') {
+        endpoint = 'scanners';
+      } else {
+        endpoint = 'laptops';
+      }
       const response = await fetch(`https://hitek-server.onrender.com/api/${endpoint}/${product.id}`);
       if (!response.ok) {
         throw new Error('Failed to load product details.');
@@ -346,7 +386,14 @@ const CmsProductsPage = () => {
         featured: ['true', 't', '1', true, 1].includes(data?.featured),
       });
 
-      const specFields = product.type === 'printer' ? PRINTER_SPEC_FIELDS : LAPTOP_SPEC_FIELDS;
+      let specFields;
+      if (product.type === 'printer') {
+        specFields = PRINTER_SPEC_FIELDS;
+      } else if (product.type === 'scanner') {
+        specFields = SCANNER_SPEC_FIELDS;
+      } else {
+        specFields = LAPTOP_SPEC_FIELDS;
+      }
       const nextSpecs = specFields.reduce((acc, field) => {
         const rawValue = data[field.sourceKey];
         acc[field.id] = rawValue !== null && rawValue !== undefined ? String(rawValue) : '';
@@ -528,7 +575,14 @@ const CmsProductsPage = () => {
       formData.append('cmsUserName', String(cmsUser.username || cmsUser.user_name || ''));
       formData.append('cmsUserRole', String(cmsUser.role || ''));
       
-      const categorySlug = editTarget.type === 'printer' ? 'printer' : 'laptop';
+      let categorySlug;
+      if (editTarget.type === 'printer') {
+        categorySlug = 'printer';
+      } else if (editTarget.type === 'scanner') {
+        categorySlug = 'scanner';
+      } else {
+        categorySlug = 'laptop';
+      }
       const response = await fetch(`https://hitek-server.onrender.com/api/products/${categorySlug}/${editTarget.id}`, {
         method: 'PATCH',
         headers: {
@@ -576,7 +630,7 @@ const CmsProductsPage = () => {
             </p>
             <h1 className="mt-2 text-3xl font-semibold text-white">Product Catalogue</h1>
             <p className="mt-1 text-sm text-slate-300">
-              Manage every laptop and printer listed on your hi-tech storefront. Update, monitor, and synchronize inventory.
+              Manage every laptop, printer, and scanner listed on your hi-tech storefront. Update, monitor, and synchronize inventory.
             </p>
           </div>
           <div className="flex gap-3 items-center">
@@ -642,6 +696,18 @@ const CmsProductsPage = () => {
           <div className="rounded-2xl border border-white/10 bg-white/10 backdrop-blur-xl p-6 shadow-xl">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-xs uppercase tracking-wide text-white/70">Scanners</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{stats.scanners}</p>
+              </div>
+              <span className="h-11 w-11 rounded-full bg-linear-to-br from-[#10b981]/30 to-[#10b981]/10 flex items-center justify-center text-[#10b981]">
+                <FiPrinter />
+              </span>
+            </div>
+            <p className="text-xs text-white/60 mt-2">Entries from the Supabase scanners table</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/10 backdrop-blur-xl p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-xs uppercase tracking-wide text-white/70">Average Price</p>
                 <p className="mt-3 text-2xl font-semibold text-white">
                   {stats.averagePrice > 0 ? `PKR ${stats.averagePrice.toLocaleString('en-PK')}` : 'n/a'}
@@ -696,6 +762,16 @@ const CmsProductsPage = () => {
                 }`}
               >
                 Printers
+              </button>
+              <button
+                onClick={() => setFilter('scanner')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+                  filter === 'scanner'
+                    ? 'bg-linear-to-r from-[#38bdf8] to-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30'
+                    : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                }`}
+              >
+                Scanners
               </button>
             </div>
           </div>
@@ -877,7 +953,17 @@ const CmsProductsPage = () => {
                     {editTarget?.type === 'printer' ? 'Printer Specifications' : 'Laptop Specifications'}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(editTarget?.type === 'printer' ? PRINTER_SPEC_FIELDS : LAPTOP_SPEC_FIELDS).map((field) => (
+                    {(() => {
+                      let specFields;
+                      if (editTarget?.type === 'printer') {
+                        specFields = PRINTER_SPEC_FIELDS;
+                      } else if (editTarget?.type === 'scanner') {
+                        specFields = SCANNER_SPEC_FIELDS;
+                      } else {
+                        specFields = LAPTOP_SPEC_FIELDS;
+                      }
+                      return specFields;
+                    })().map((field) => (
                       <label key={field.id} className="flex flex-col bg-white/5 border border-white/10 rounded-xl p-4">
                         <span className="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2">
                           {field.label}

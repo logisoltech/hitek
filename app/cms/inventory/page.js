@@ -61,9 +61,9 @@ const sanitizeProduct = (item, type) => {
     priceLabel: price > 0 ? `PKR ${price.toLocaleString('en-PK')}` : 'Price on request',
     stock,
     lastUpdated: item.updated_at || item.updatedat || item.updatedAt || null,
-    image: images[0] || item.image || (resolvedType === 'printer' ? '/printer-category.png' : '/laptop-category.jpg'),
+    image: images[0] || item.image || (resolvedType === 'printer' || resolvedType === 'scanner' ? '/printer-category.png' : '/laptop-category.jpg'),
     images,
-    category: resolvedType === 'printer' ? 'Printers' : 'Laptops',
+    category: resolvedType === 'printer' ? 'Printers' : resolvedType === 'scanner' ? 'Scanners' : 'Laptops',
   };
 };
 
@@ -118,19 +118,26 @@ const CmsInventoryPage = () => {
       try {
         setLoading(true);
         setError('');
-        const [laptopsRes, printersRes] = await Promise.all([
+        const [laptopsRes, printersRes, scannersRes] = await Promise.all([
           fetch('https://hitek-server.onrender.com/api/laptops'),
           fetch('https://hitek-server.onrender.com/api/printers'),
+          fetch('https://hitek-server.onrender.com/api/scanners'),
         ]);
 
         if (!laptopsRes.ok) throw new Error('Failed to load laptops');
         if (!printersRes.ok) throw new Error('Failed to load printers');
+        if (!scannersRes.ok) throw new Error('Failed to load scanners');
 
-        const [laptopsData, printersData] = await Promise.all([laptopsRes.json(), printersRes.json()]);
+        const [laptopsData, printersData, scannersData] = await Promise.all([
+          laptopsRes.json(),
+          printersRes.json(),
+          scannersRes.json(),
+        ]);
 
         const sanitized = [
           ...(Array.isArray(laptopsData) ? laptopsData.map((item) => sanitizeProduct(item, 'laptop')) : []),
           ...(Array.isArray(printersData) ? printersData.map((item) => sanitizeProduct(item, 'printer')) : []),
+          ...(Array.isArray(scannersData) ? scannersData.map((item) => sanitizeProduct(item, 'scanner')) : []),
         ].filter(Boolean);
 
         setProducts(sanitized);
@@ -182,7 +189,14 @@ const CmsInventoryPage = () => {
     setStockSuccess('');
 
     try {
-      const endpoint = stockTarget.type === 'printer' ? 'printers' : 'laptops';
+      let endpoint;
+      if (stockTarget.type === 'printer') {
+        endpoint = 'printers';
+      } else if (stockTarget.type === 'scanner') {
+        endpoint = 'scanners';
+      } else {
+        endpoint = 'laptops';
+      }
       const response = await fetch(
         `https://hitek-server.onrender.com/api/${endpoint}/${stockTarget.id}/stock`,
         {
@@ -323,6 +337,17 @@ const CmsInventoryPage = () => {
                 <FiPrinter />
                 Printers
               </button>
+              <button
+                onClick={() => setFilter('scanner')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition inline-flex items-center gap-2 ${
+                  filter === 'scanner'
+                    ? 'bg-linear-to-r from-[#38bdf8] to-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30'
+                    : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                }`}
+              >
+                <FiPrinter />
+                Scanners
+              </button>
             </div>
           </div>
 
@@ -362,7 +387,7 @@ const CmsInventoryPage = () => {
                   <div className="relative p-6 flex flex-col gap-4">
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-white/10 text-white/80 border border-white/10">
-                        {product.type === 'printer' ? <FiPrinter /> : <FiMonitor />}
+                        {product.type === 'printer' || product.type === 'scanner' ? <FiPrinter /> : <FiMonitor />}
                         {product.category}
                       </span>
                       <span className="text-xs text-white/60">{product.brand}</span>
