@@ -259,7 +259,7 @@ const Navbar = () => {
   const categories = [
     'All Categories',
     'Laptops',
-    'Printers',
+    'Printers & Scanners',
     'LED Monitors',
     'Toners',
     'Desktop PCs',
