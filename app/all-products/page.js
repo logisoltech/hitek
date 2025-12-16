@@ -26,7 +26,9 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
       ? 'Laptops'
       : restrictToType === 'printer'
         ? 'Printers'
-        : null;
+        : restrictToType === 'scanner'
+          ? 'Scanners'
+          : null;
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
 
   const [priceRange, setPriceRange] = useState({ min: PRICE_MIN, max: PRICE_MAX });
@@ -71,7 +73,14 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
 
   useEffect(() => {
     if (brandParam) {
-      const targetCategory = restrictToType === 'printer' ? 'Printers' : 'Laptops';
+      let targetCategory;
+      if (restrictToType === 'printer') {
+        targetCategory = 'Printers';
+      } else if (restrictToType === 'scanner') {
+        targetCategory = 'Scanners';
+      } else {
+        targetCategory = 'Laptops';
+      }
       brandFromUrlRef.current = true;
       setSelectedBrands([brandParam]);
       setSelectedCategory((prev) => (prev === targetCategory ? prev : targetCategory));
@@ -98,6 +107,8 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
         setSelectedCategory('Laptops');
       } else if (normalizedCategory === 'printer' || normalizedCategory === 'printers') {
         setSelectedCategory('Printers');
+      } else if (normalizedCategory === 'scanner' || normalizedCategory === 'scanners') {
+        setSelectedCategory('Scanners');
       }
     }
   }, [categoryParam]);
@@ -208,7 +219,7 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
       id: rawId,
       sourceId: item.id,
       type,
-      category: type === 'printer' ? 'Printers' : 'Laptops',
+      category: type === 'printer' ? 'Printers' : type === 'scanner' ? 'Scanners' : 'Laptops',
       brand: typeof item.brand === 'string' ? item.brand.trim() : '',
       cartId: hasId ? `${type}-${rawId}` : undefined,
       price: hasPrice ? parsedPrice : 0,
@@ -277,11 +288,17 @@ export const ProductsPage = ({ searchParams: initialSearchParams = {}, restrictT
 
         const normalized = (Array.isArray(payload) ? payload : [])
           .map((item) => {
-            const inferredType =
-              item?.type ||
-              (typeof item?.category === 'string' && item.category.toLowerCase().includes('printer')
-                ? 'printer'
-                : 'laptop');
+            let inferredType = item?.type;
+            if (!inferredType && typeof item?.category === 'string') {
+              const categoryLower = item.category.toLowerCase();
+              if (categoryLower.includes('printer')) {
+                inferredType = 'printer';
+              } else if (categoryLower.includes('scanner')) {
+                inferredType = 'scanner';
+              } else {
+                inferredType = 'laptop';
+              }
+            }
             return normalizeProduct(item, inferredType || 'laptop');
           })
           .filter(Boolean);

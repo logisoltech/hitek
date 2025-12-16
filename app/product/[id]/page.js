@@ -28,10 +28,13 @@ const ProductPage = () => {
   const productId = params?.id;
   const searchParams = useSearchParams();
   const requestedType = searchParams?.get('type');
+  const requestedTypeLower = typeof requestedType === 'string' ? requestedType.toLowerCase() : '';
   const initialType =
-    typeof requestedType === 'string' && requestedType.toLowerCase() === 'printer'
+    requestedTypeLower === 'printer'
       ? 'printer'
-      : 'laptop';
+      : requestedTypeLower === 'scanner'
+        ? 'scanner'
+        : 'laptop';
   
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -84,6 +87,7 @@ const ProductPage = () => {
     if (typeof rawType === 'string') {
       const normalized = rawType.toLowerCase();
       if (normalized.includes('printer')) return 'printer';
+      if (normalized.includes('scanner')) return 'scanner';
       if (normalized.includes('laptop')) return 'laptop';
     }
     return fallback;
@@ -125,17 +129,29 @@ const ProductPage = () => {
 
       try {
         let endpointType = initialType;
-        const buildUrl = (type) =>
-          `https://hitek-server.onrender.com/api/${type === 'printer' ? 'printers' : 'laptops'}/${productId}`;
+        const buildUrl = (type) => {
+          if (type === 'printer') return `https://hitek-server.onrender.com/api/printers/${productId}`;
+          if (type === 'scanner') return `https://hitek-server.onrender.com/api/scanners/${productId}`;
+          return `https://hitek-server.onrender.com/api/laptops/${productId}`;
+        };
 
         let response = await fetch(buildUrl(endpointType));
 
         if (response.status === 404) {
-          const fallbackType = endpointType === 'printer' ? 'laptop' : 'printer';
-          const fallbackResponse = await fetch(buildUrl(fallbackType));
-          if (fallbackResponse.ok) {
-            response = fallbackResponse;
-            endpointType = fallbackType;
+          // Try fallback types
+          const fallbackTypes = endpointType === 'printer' 
+            ? ['scanner', 'laptop']
+            : endpointType === 'scanner'
+              ? ['printer', 'laptop']
+              : ['printer', 'scanner'];
+          
+          for (const fallbackType of fallbackTypes) {
+            const fallbackResponse = await fetch(buildUrl(fallbackType));
+            if (fallbackResponse.ok) {
+              response = fallbackResponse;
+              endpointType = fallbackType;
+              break;
+            }
           }
         }
 
@@ -149,7 +165,7 @@ const ProductPage = () => {
         const data = await response.json();
         const resolvedType = resolveProductType(data, endpointType);
         const imageArray = extractImageArray(data, resolvedType);
-        const placeholder = resolvedType === 'printer' ? '/printer-category.png' : '/big-laptop.png';
+        const placeholder = resolvedType === 'printer' ? '/printer-category.png' : resolvedType === 'scanner' ? '/printer-category.png' : '/big-laptop.png';
         const images = imageArray.length ? imageArray : [placeholder];
         const rawId =
           data.id !== null && data.id !== undefined && data.id.toString
@@ -180,7 +196,7 @@ const ProductPage = () => {
           ...data,
           id: rawId,
           type: resolvedType,
-          category: data.category || (resolvedType === 'printer' ? 'Printers' : 'Laptops'),
+          category: data.category || (resolvedType === 'printer' ? 'Printers' : resolvedType === 'scanner' ? 'Scanners' : 'Laptops'),
           cartId: rawId ? `${resolvedType}-${rawId}` : undefined,
           name: finalName,
           description: computedDescription,
@@ -196,7 +212,7 @@ const ProductPage = () => {
           images,
         };
         setProduct(normalized);
-        if (normalized.type === 'printer') {
+        if (normalized.type === 'printer' || normalized.type === 'scanner') {
           setSelectedMemory('');
           setSelectedSize('');
           setSelectedStorage('');
@@ -264,24 +280,25 @@ const ProductPage = () => {
   };
 
   const isPrinter = (product?.type || initialType) === 'printer';
-  const isLaptop = !isPrinter;
+  const isScanner = (product?.type || initialType) === 'scanner';
+  const isLaptop = !isPrinter && !isScanner;
 
   const memoryOptions = useMemo(() => {
-    if (!product || isPrinter) return [];
+    if (!product || isPrinter || isScanner) return [];
     const value = sanitizeSpecValue(product.memory);
     if (value) return [value];
     return DEFAULT_MEMORY_OPTIONS;
   }, [product, isPrinter]);
 
   const displayOptions = useMemo(() => {
-    if (!product || isPrinter) return [];
+    if (!product || isPrinter || isScanner) return [];
     const value = sanitizeSpecValue(product.display);
     if (value) return [value];
     return DEFAULT_DISPLAY_OPTIONS;
   }, [product, isPrinter]);
 
   const storageOptions = useMemo(() => {
-    if (!product || isPrinter) return [];
+    if (!product || isPrinter || isScanner) return [];
     const value = sanitizeSpecValue(product.storage);
     if (value) return [value];
     return DEFAULT_STORAGE_OPTIONS;
@@ -336,14 +353,14 @@ const ProductPage = () => {
   const reviews = product.reviews || 125;
   const categoryLabel =
     product.category ||
-    (product.type === 'printer' ? 'Printers' : 'Laptops');
+    (product.type === 'printer' ? 'Printers' : product.type === 'scanner' ? 'Scanners' : 'Laptops');
 
   const handleAddToCart = () => {
     if (!product) return;
     const cartId = product.cartId || (product.type ? `${product.type}-${product.id}` : product.id);
     const imageSrc =
       product.image ||
-      (product.type === 'printer' ? '/printer-category.png' : '/laptop-category.jpg');
+      (product.type === 'printer' || product.type === 'scanner' ? '/printer-category.png' : '/laptop-category.jpg');
     addToCart(
       {
         id: cartId,
@@ -363,8 +380,9 @@ const ProductPage = () => {
   };
 
 
+  const productType = product.type || initialType;
   const specList = (
-    (product.type || initialType) === 'printer'
+    productType === 'printer'
       ? [
           { label: 'Brand', value: product.brand },
           { label: 'Series', value: product.series },
@@ -381,21 +399,37 @@ const ProductPage = () => {
           { label: 'Scan Feature', value: product.scanfeature },
           { label: 'Wireless', value: product.wireless },
         ]
-      : [
-          { label: 'Processor', value: product.processor },
-          { label: 'Graphics', value: product.graphics },
-          { label: 'Display', value: product.display },
-          { label: 'Memory', value: product.memory },
-          { label: 'Storage', value: product.storage },
-          { label: 'Adapter', value: product.adapter },
-          { label: 'Wi-Fi', value: product.wifi },
-          { label: 'Bluetooth', value: product.bluetooth },
-          { label: 'Camera', value: product.camera },
-          { label: 'Ports', value: product.port },
-          { label: 'Operating System', value: product.os },
-          { label: 'Microphone', value: product.mic },
-          { label: 'Battery', value: product.battery },
-        ]
+      : productType === 'scanner'
+        ? [
+            { label: 'Brand', value: product.brand },
+            { label: 'Series', value: product.series },
+            { label: 'Model', value: product.model },
+            { label: 'Memory', value: product.memory },
+            { label: 'Paper Types', value: product.paper_types },
+            { label: 'Paper Size', value: product.paper_size },
+            { label: 'Dimensions', value: product.dimensions },
+            { label: 'Weight', value: product.weight },
+            { label: 'Power', value: product.power },
+            { label: 'Duplex', value: product.duplex },
+            { label: 'Resolution', value: product.resolution },
+            { label: 'Color Scan', value: product.color_scan },
+            { label: 'Wireless', value: product.wireless },
+          ]
+        : [
+            { label: 'Processor', value: product.processor },
+            { label: 'Graphics', value: product.graphics },
+            { label: 'Display', value: product.display },
+            { label: 'Memory', value: product.memory },
+            { label: 'Storage', value: product.storage },
+            { label: 'Adapter', value: product.adapter },
+            { label: 'Wi-Fi', value: product.wifi },
+            { label: 'Bluetooth', value: product.bluetooth },
+            { label: 'Camera', value: product.camera },
+            { label: 'Ports', value: product.port },
+            { label: 'Operating System', value: product.os },
+            { label: 'Microphone', value: product.mic },
+            { label: 'Battery', value: product.battery },
+          ]
   ).filter((spec) => spec.value);
 
   return (
@@ -432,7 +466,7 @@ const ProductPage = () => {
                 product.name,
                 'h-full w-auto max-h-full max-w-full object-contain',
                 { width: 600, height: 500 },
-                product.type === 'printer' ? '/printer-category.png' : '/big-laptop.png',
+                product.type === 'printer' || product.type === 'scanner' ? '/printer-category.png' : '/big-laptop.png',
               )}
             </div>
 
@@ -466,7 +500,7 @@ const ProductPage = () => {
                       `Thumbnail ${index + 1}`,
                       'w-20 h-20 object-contain',
                       { width: 80, height: 80 },
-                      product.type === 'printer' ? '/printer-category.png' : '/big-laptop.png',
+                      product.type === 'printer' || product.type === 'scanner' ? '/printer-category.png' : '/big-laptop.png',
                     )}
                   </button>
                 ))}
