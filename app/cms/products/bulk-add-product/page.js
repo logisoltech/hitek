@@ -127,7 +127,7 @@ const BulkAddProductsPage = () => {
             </Link>
             <h1 className="mt-3 text-3xl font-semibold text-white">Bulk Add Products</h1>
             <p className="mt-2 text-sm text-slate-300 max-w-2xl">
-              Upload a spreadsheet or paste multiple entries to create product listings in one go. This tool supports both laptops and printers.
+              Upload a spreadsheet or paste multiple entries to create product listings in one go. This tool supports laptops, printers, and scanners.
             </p>
           </div>
         </header>
@@ -151,6 +151,9 @@ const BulkAddProductsPage = () => {
                       </option>
                       <option className="text-slate-900" value="printer">
                         Printer CSV
+                      </option>
+                      <option className="text-slate-900" value="scanner">
+                        Scanner CSV
                       </option>
                     </select>
                     <FiInfo className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[#38bdf8]" />

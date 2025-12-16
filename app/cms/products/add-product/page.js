@@ -31,6 +31,15 @@ const GENERAL_FIELD_CONFIG = {
     { id: 'price', label: 'Price (PKR)', type: 'text', placeholder: '120000' },
     { id: 'stock', label: 'Stock Quantity', type: 'number', placeholder: '15' },
   ],
+  scanner: [
+    { id: 'name', label: 'Product Name', type: 'text', placeholder: 'HP ScanJet Pro' },
+    { id: 'brand', label: 'Brand', type: 'text', placeholder: 'HP' },
+    { id: 'model', label: 'Model', type: 'text', placeholder: 'ScanJet Pro' },
+    { id: 'series', label: 'Series', type: 'text', placeholder: '2500' },
+    { id: 'sku', label: 'SKU / Identifier', type: 'text', placeholder: 'SCN-0001' },
+    { id: 'price', label: 'Price (PKR)', type: 'text', placeholder: '50000' },
+    { id: 'stock', label: 'Stock Quantity', type: 'number', placeholder: '10' },
+  ],
 };
 
 const laptopSpecs = [
@@ -66,6 +75,19 @@ const printerSpecs = [
   { id: 'wireless', label: 'Wireless', placeholder: 'Yes / No' },
 ];
 
+const scannerSpecs = [
+  { id: 'memory', label: 'Memory', placeholder: '128 MB' },
+  { id: 'paper_types', label: 'Paper Types', placeholder: 'Plain paper, Photo paper' },
+  { id: 'paper_size', label: 'Paper Size', placeholder: 'A4, Letter' },
+  { id: 'duplex', label: 'Duplex', placeholder: 'Yes / No' },
+  { id: 'resolution', label: 'Resolution', placeholder: 'Up to 1200 DPI' },
+  { id: 'power', label: 'Power', placeholder: '220 to 240 VAC (± 10%), 50/60 Hz' },
+  { id: 'weight', label: 'Weight', placeholder: '3.5 kg' },
+  { id: 'dimensions', label: 'Dimensions', placeholder: '425.2 x 304.1 x 149.1 mm' },
+  { id: 'color_scan', label: 'Color Scan', placeholder: 'Yes / No' },
+  { id: 'wireless', label: 'Wireless', placeholder: 'Yes / No' },
+];
+
 const CmsAddProductPage = () => {
   const router = useRouter();
   const [category, setCategory] = useState('laptop');
@@ -85,7 +107,11 @@ const CmsAddProductPage = () => {
   const [status, setStatus] = useState({ type: '', message: '' });
   const [submitting, setSubmitting] = useState(false);
 
-  const specFields = useMemo(() => (category === 'laptop' ? laptopSpecs : printerSpecs), [category]);
+  const specFields = useMemo(() => {
+    if (category === 'laptop') return laptopSpecs;
+    if (category === 'scanner') return scannerSpecs;
+    return printerSpecs;
+  }, [category]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -283,7 +309,7 @@ const CmsAddProductPage = () => {
             <p className="text-xs uppercase tracking-[0.3em] text-slate-300">Catalog</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">Add Product</h1>
             <p className="text-sm text-slate-300 mt-2">
-              Choose a category to tailor the specification sheet. Upload multiple product photos before submitting.
+              Choose a category (Laptop, Printer, or Scanner) to tailor the specification sheet. Upload multiple product photos before submitting.
             </p>
           </div>
           <div className="flex gap-3">
@@ -330,6 +356,7 @@ const CmsAddProductPage = () => {
                   >
                     <option className="text-black" value="laptop">Laptop</option>
                     <option className="text-black" value="printer">Printer</option>
+                    <option className="text-black" value="scanner">Scanner</option>
                   </select>
                 </label>
                 <label className="flex flex-col">
@@ -338,7 +365,7 @@ const CmsAddProductPage = () => {
                     name="description"
                     value={details.description}
                     onChange={handleGeneralChange}
-                    rows={category === 'laptop' ? 4 : 3}
+                    rows={category === 'laptop' ? 4 : category === 'scanner' ? 3 : 3}
                     placeholder="High-level marketing copy or key highlights."
                     className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#38bdf8]/60 resize-none"
                   />
@@ -387,7 +414,7 @@ const CmsAddProductPage = () => {
               <div>
                 <p className="text-sm font-semibold text-white flex items-center gap-2">
                   {category === 'laptop' ? <FiCpu className="text-[#38bdf8]" /> : <FiPrinter className="text-[#38bdf8]" />}
-                  {category === 'laptop' ? 'Laptop Specification Sheet' : 'Printer Specification Sheet'}
+                  {category === 'laptop' ? 'Laptop Specification Sheet' : category === 'scanner' ? 'Scanner Specification Sheet' : 'Printer Specification Sheet'}
                 </p>
                 <p className="text-xs text-slate-300 mt-1">
                   Fill in each spec exactly how you would like it to appear on the product page.
