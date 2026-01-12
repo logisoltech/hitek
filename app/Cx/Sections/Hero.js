@@ -12,8 +12,9 @@ import { openSans } from '../Font/font';
 
 const Hero = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   
-  const banners = [
+  const allBanners = [
     { 
       src: '/main-banner.png', 
       alt: 'HP Victus Laptop Banner',
@@ -33,13 +34,33 @@ const Hero = () => {
     },
   ];
 
+  // Filter banners based on screen size
+  const banners = isMobile ? allBanners.slice(1) : allBanners;
+  const maxSlides = banners.length;
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Reset slide to 0 when switching between mobile/desktop
+  useEffect(() => {
+    setCurrentSlide(0);
+  }, [isMobile]);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % banners.length);
-    }, 3000); // Change slide every 5 seconds
+      setCurrentSlide((prev) => (prev + 1) % maxSlides);
+    }, 3000); // Change slide every 3 seconds
 
     return () => clearInterval(interval);
-  }, [banners.length]);
+  }, [maxSlides]);
 
   return (
     <div className={`w-full ${openSans.className}`}>
@@ -50,7 +71,7 @@ const Hero = () => {
           style={{ transform: `translateX(-${currentSlide * 100}%)` }}
         >
           {banners.map((banner, index) => (
-            <div key={index} className="w-full shrink-0 relative">
+            <div key={`${banner.src}-${index}`} className="w-full shrink-0 relative">
               <div className="relative w-full aspect-[16/9] md:aspect-[16/6] lg:aspect-[1920/600] overflow-hidden">
                 <Image 
                   src={banner.src} 
