@@ -22,30 +22,6 @@ const paymentMethods = [
     image: '/cod.png',
     helper: 'Pay when the order arrives at your doorstep.',
   },
-  {
-    id: 'easypaisa',
-    label: 'Easy Paisa',
-    image: '/easypaisa.png',
-    helper: 'Use Easy Paisa mobile wallet for instant payment.',
-  },
-  {
-    id: 'sadapay',
-    label: 'SadaPay',
-    image: '/sadapay.png',
-    helper: 'Secure payment through SadaPay wallet.',
-  },
-  {
-    id: 'nayapay',
-    label: 'NayaPay',
-    image: '/nayapay.png',
-    helper: 'Pay using your NayaPay wallet.',
-  },
-  {
-    id: 'card',
-    label: 'Debit/Credit Card',
-    image: '/CreditCard.png',
-    helper: 'Visa, MasterCard and UnionPay accepted.',
-  },
 ];
 
 const formatCardNumber = (value) => {
@@ -85,7 +61,7 @@ const CheckoutPage = () => {
     phone: '',
   });
   const [shipToDifferent, setShipToDifferent] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [paymentMethod, setPaymentMethod] = useState('cod');
   const [cardInfo, setCardInfo] = useState({
     name: '',
     number: '',
@@ -196,14 +172,6 @@ const CheckoutPage = () => {
 
     if (!billingInfo.firstName || !billingInfo.lastName || !billingInfo.address || !billingInfo.phone) {
       setStatusMessage('Please fill in all required billing fields before placing the order.');
-      return;
-    }
-
-    if (
-      paymentMethod === 'card' &&
-      (!cardInfo.name || !cardInfo.number || !cardInfo.expiry || !cardInfo.cvc)
-    ) {
-      setStatusMessage('Please provide complete card details.');
       return;
     }
 
@@ -522,7 +490,7 @@ const CheckoutPage = () => {
                   <h2 className="text-lg font-bold text-gray-800">Payment Option</h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                <div className="flex items-center gap-3">
                   {paymentMethods.map((method) => {
                     const isActive = paymentMethod === method.id;
                     return (
@@ -530,7 +498,7 @@ const CheckoutPage = () => {
                         key={method.id}
                         type="button"
                         onClick={() => setPaymentMethod(method.id)}
-                        className={`flex flex-col items-center justify-center gap-2 border border-gray-200 rounded-xs px-4 py-4 text-sm  transition ${
+                        className={`flex items-center gap-3 border border-gray-200 rounded-xs px-4 py-4 text-sm transition ${
                           isActive ? 'bg-[#00aeef]/10 text-[#00aeef] border-[#00aeef]' : 'text-gray-600 hover:border-[#00aeef] hover:text-[#00aeef]'
                         }`}
                       >
@@ -542,7 +510,7 @@ const CheckoutPage = () => {
                             className="object-contain"
                           />
                         </div>
-                        <span className="text-center leading-snug">{method.label}</span>
+                        <span className="leading-snug">{method.label}</span>
                         <div
                           className={`h-2 w-2 rounded-full border ${
                             isActive ? 'border-[#00aeef] bg-[#00aeef]' : 'border-gray-300 bg-white'
